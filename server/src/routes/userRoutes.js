@@ -18,8 +18,11 @@ import {
     createUser, 
     updateUser, 
     deleteUser, 
-    resetUserPassword 
+    resetUserPassword,
+    getMyProfile, 
+    updateMyProfile
 } from "../controllers/userController.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 // Optional: Import your auth middleware if you have it
 // import { protect, admin } from "../middleware/authMiddleware.js";
@@ -30,6 +33,9 @@ const router = express.Router();
  * Route: /api/users
  * These routes are handled by the userController
  */
+router.route("/me")
+    .get(protect, getMyProfile)
+    .patch(protect, updateMyProfile);
 
 // 1. Get all users & Create a new user
 router.route("/")

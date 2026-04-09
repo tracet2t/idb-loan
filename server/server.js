@@ -17,7 +17,7 @@ const app = express();
 // This allows your Vite frontend (5173) to talk to this backend (5000)
 app.use(cors({
   origin: "http://localhost:5173", // Explicitly allow your frontend
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  methods: ["GET", "POST", "PUT", "DELETE","PATCH"], // Allowed HTTP methods
   credentials: true // Required since your axios.js has withCredentials: true
 }));
 

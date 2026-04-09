@@ -53,25 +53,33 @@ export const createUser = async (req, res) => {
 // UPDATE USER
 export const updateUser = async (req, res) => {
   const { id } = req.params;
-  const { fullName, designation, phone, address, qualification, role } = req.body;
+  const { fullName, designation, phone, address, qualification, role, email } = req.body;
+
   try {
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      {
-        $set: {
-          email,
-          role,
-          "profile.fullName": fullName,
-          "profile.designation": designation,
-          "profile.phone": phone,
-          "profile.address": address,
-          "profile.studies": qualification,
-        },
-      },
-      { new: true }
-    ).select("-password");
+    // 1. Find the user first to ensure they exist
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // 2. Initialize profile if it doesn't exist
+    if (!user.profile) user.profile = {};
+
+    // 3. Update top-level fields
+    if (email) user.email = email;
+    if (role) user.role = role;
+
+    // 4. Update nested profile fields
+    if (fullName !== undefined) user.profile.fullName = fullName;
+    if (designation !== undefined) user.profile.designation = designation;
+    if (phone !== undefined) user.profile.phone = phone;
+    if (address !== undefined) user.profile.address = address;
+    if (qualification !== undefined) user.profile.studies = qualification;
+
+    // 5. Save the document (this triggers validation and pre-save hooks)
+    const updatedUser = await user.save();
+
     res.status(200).json(updatedUser);
   } catch (error) {
+    console.error("USER MANAGEMENT UPDATE ERROR:", error.message);
     res.status(500).json({ message: "Update failed", error: error.message });
   }
 };
@@ -94,5 +102,58 @@ export const resetUserPassword = async (req, res) => {
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     res.status(500).json({ message: "Reset failed" });
+  }
+};
+
+// GET CURRENT LOGGED-IN USER PROFILE
+export const getMyProfile = async (req, res) => {
+  try {
+    // req.user.id is set by your authMiddleware
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch profile" });
+  }
+};
+
+// UPDATE CURRENT LOGGED-IN USER PROFILE
+export const updateMyProfile = async (req, res) => {
+  try {
+    // Standardize the ID check
+    const userId = req.user?._id || req.user?.id; 
+    
+    if (!userId) {
+        return res.status(401).json({ message: "Not authorized, no ID found" });
+    }
+
+    const user = await User.findById(userId);
+    const { fullName, designation, phone, address, qualification, password } = req.body;
+
+    // ✅ SAFETY CHECK: If the 'profile' object doesn't exist in DB, create it now
+    if (!user.profile) {
+      user.profile = {};
+    }
+
+    // 1. Update Profile Fields using optional chaining or direct assignment
+    if (fullName) user.profile.fullName = fullName;
+    if (designation) user.profile.designation = designation;
+    if (phone) user.profile.phone = phone;
+    if (address) user.profile.address = address;
+    if (qualification) user.profile.studies = qualification; 
+    
+    // 2. Update Password
+    if (password && password.trim() !== "") {
+      user.password = await bcrypt.hash(password, 10);
+    }
+
+    // This triggers the .save() which handles the nesting in MongoDB
+    const updatedUser = await user.save();
+    
+    res.status(200).json({ message: "Profile updated successfully" });
+  } catch (error) {
+    console.error("BACKEND ERROR:", error.message); // Look at your terminal for this!
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };

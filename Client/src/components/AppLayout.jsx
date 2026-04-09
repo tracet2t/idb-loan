@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import Sidebar from './layout/Sidebar'
 import LoanQueue from '../pages/LoanQueue'
 import UserManagement from '../pages/UserManagement'
+import MyProfile from '../pages/MyProfile'
 // Add more page imports here as you build them
 // import Dashboard from '../pages/Dashboard'
 
@@ -25,7 +26,7 @@ export default function AppLayout() {
           <Route path="/applications"    element={<LoanQueue />} />
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/reference-data"  element={<Placeholder title="Reference Data" />} />
-          <Route path="/my-profile"      element={<Placeholder title="My Profile" />} />
+          <Route path="/my-profile"      element={<MyProfile />} />
           <Route path="*"                element={<Navigate to="/applications" replace />} />
         </Routes>
       </main>
