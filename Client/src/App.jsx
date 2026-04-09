@@ -1,13 +1,25 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
+import AppLayout from './components/AppLayout'
+import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Login />} />
+        {/* Public routes */}
+        <Route path="/"      element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
-        {/* Add your dashboard route here later */}
+
+        {/* Protected routes – all wrapped in AppLayout (sidebar + main) */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   )
