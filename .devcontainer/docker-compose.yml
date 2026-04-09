@@ -1,0 +1,35 @@
+services:
+
+  app:
+    image: mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm
+    volumes:
+      - ..:/workspace:cached
+    # Keeps the container alive so VS Code can attach to it.
+    command: sleep infinity
+    environment:
+      # Tells Node.js tooling we are not in production
+      - NODE_ENV=development
+    ports:
+      - "5000:5000"   # Express API
+      - "5173:5173"   # Vite dev server
+    networks:
+      - idb-net
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - idb-net
+    # Expose to the host only for local GUI tools (e.g. MongoDB Compass)
+    ports:
+      - "27017:27017"
+
+volumes:
+  mongo-data:
+
+networks:
+  idb-net:
