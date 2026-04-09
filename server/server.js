@@ -5,6 +5,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./src/routes/authRoutes.js";
 import loanRoutes from "./src/routes/loanRoutes.js";
+import referenceRoutes from "./src/routes/referenceRoutes.js";
 import statsRoutes from "./src/routes/statsRoutes.js";
 
 // 1. Load Environment Variables
@@ -29,6 +30,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/loans", loanRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/reference", referenceRoutes);
 
 // 5. Health Check (Optional - good for testing)
 app.get("/", (req, res) => {
