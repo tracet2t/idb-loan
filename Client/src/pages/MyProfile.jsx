@@ -82,10 +82,10 @@ const MyProfile = () => {
                     <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
                         <User size={16} /> <span className="font-semibold text-gray-700">Edit Profile</span>
                     </div>
-                    <p className="text-xs text-gray-400">
+                    {/* <p className="text-xs text-gray-400">
                         Username <span className="font-bold">({formData.username})</span> and role 
                         <span className="font-bold"> ({formData.role})</span> cannot be changed here.
-                    </p>
+                    </p> */}
                 </div>
 
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
