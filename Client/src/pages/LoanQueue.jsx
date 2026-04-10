@@ -516,7 +516,7 @@ const handleExport = async () => {
         {/* ── Header ── */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Global Loan Queue</h1>
+            <h1 className="text-2xl font-bold text-slate-800"> Loan Queue</h1>
             <p className="text-sm text-slate-400 mt-0.5">
               {loading
                 ? 'Loading applications…'
