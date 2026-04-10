@@ -6,7 +6,6 @@ import dotenv from "dotenv";
 import authRoutes from "./src/routes/authRoutes.js";
 import loanRoutes from "./src/routes/loanRoutes.js";
 import statsRoutes from "./src/routes/statsRoutes.js";
-import userRoutes from "./src/routes/userRoutes.js";
 
 // 1. Load Environment Variables
 dotenv.config();
@@ -30,7 +29,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/loans", loanRoutes);
 app.use("/api/stats", statsRoutes);
-app.use("/api/users", userRoutes);
 
 // 5. Health Check (Optional - good for testing)
 app.get("/", (req, res) => {

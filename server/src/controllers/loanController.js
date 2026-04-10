@@ -3,18 +3,29 @@ import Loan from "../models/loan.js";
 // GET all loans with filters, search, pagination
 export const getLoans = async (req, res) => {
   try {
-    const { status, region, sector, priority, search, page = 1, limit = 10 } = req.query;
+    const {
+      status,
+      region,
+      sector,
+      priority,
+      search,
+      page = 1,
+      limit = 10,
+    } = req.query;
 
     // Build filter object
     const filter = {};
-    if (status)   filter.status = status;
-    if (region)   filter.region = region;
-    if (sector)   filter.sector = sector;
+    if (status) filter.status = status;
+    if (region) filter.region = region;
+    if (sector) filter.sector = sector;
     if (priority) filter.priority = priority === "true";
 
-    // Search by applicant name
+    // Search by applicant name OR nic
     if (search) {
-      filter.applicantName = { $regex: search, $options: "i" };
+      filter.$or = [
+        { applicantName: { $regex: search, $options: "i" } },
+        { nic: { $regex: search, $options: "i" } },
+      ];
     }
 
     const total = await Loan.countDocuments(filter);
@@ -27,12 +38,11 @@ export const getLoans = async (req, res) => {
       loans,
       pagination: {
         total,
-        page:       Number(page),
-        limit:      Number(limit),
+        page: Number(page),
+        limit: Number(limit),
         totalPages: Math.ceil(total / limit),
-      }
+      },
     });
-
   } catch (error) {
     res.status(500).json({ message: "Error fetching loans" });
   }
@@ -67,9 +77,10 @@ export const updateLoanStatus = async (req, res) => {
     const updatedLoan = await Loan.findByIdAndUpdate(
       req.params.id,
       { status, remarks },
-      { new: true }
+      { new: true },
     );
-    if (!updatedLoan) return res.status(404).json({ message: "Loan not found" });
+    if (!updatedLoan)
+      return res.status(404).json({ message: "Loan not found" });
     res.status(200).json(updatedLoan);
   } catch (error) {
     res.status(500).json({ message: "Failed to update status" });
@@ -79,8 +90,8 @@ export const updateLoanStatus = async (req, res) => {
 // GET loan stats for dashboard
 export const getLoanStats = async (req, res) => {
   try {
-    const total    = await Loan.countDocuments();
-    const pending  = await Loan.countDocuments({ status: "Pending" });
+    const total = await Loan.countDocuments();
+    const pending = await Loan.countDocuments({ status: "Pending" });
     const approved = await Loan.countDocuments({ status: "Approved" });
     const rejected = await Loan.countDocuments({ status: "Rejected" });
     const priority = await Loan.countDocuments({ priority: true });
