@@ -14,22 +14,23 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
 
-        {/* Protected routes */}
+        {/* Protected routes – all wrapped in AppLayout (sidebar + main) */}
         <Route
+          path="/*"
           element={
             <ProtectedRoute>
               <AppLayout />
             </ProtectedRoute>
           }
         >
-          {/* ✅ The My Profile route is now a child of AppLayout */}
-          {/* <Route path="/dashboard" element={<Overview />} /> */}
-          <Route path="/applications" element={<LoanQueue />} />
-          <Route path="/my-profile" element={<MyProfile />} />
+          {/* ✅ Fixed: Removed leading slashes from child routes */}
+          <Route path="applications" element={<LoanQueue />} />
+          <Route path="my-profile" element={<MyProfile />} />
           
           {/* Redirect any unknown protected paths to dashboard */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
+        
       </Routes>
     </BrowserRouter>
   )

@@ -164,7 +164,7 @@ const MyProfile = () => {
                         )}
                     </div>
                     <button type="submit" 
-                        className="bg-emerald-700 text-white px-6 py-2.5 rounded-lg flex items-center gap-2 hover:bg-emerald-800 transition-all font-semibold shadow-md">
+                        className="text-white px-6 py-2.5 rounded-lg flex items-center gap-2 bg-[#e09510] hover:bg-[#c8840e] transition-all font-semibold shadow-md">
                         <Save size={18} /> Save Changes
                     </button>
                 </div>

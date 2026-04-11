@@ -115,7 +115,7 @@ export default function UserManagement() {
           </div>
           <button
             onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#2e7d5e] text-white text-sm font-medium rounded-lg hover:bg-[#256b50] transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#e09510] hover:bg-[#c8840e] text-white text-sm font-medium rounded-lg transition-all"
           >
             <Plus size={16} />
             Add User

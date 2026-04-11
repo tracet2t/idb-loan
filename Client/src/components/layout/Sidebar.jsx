@@ -7,6 +7,7 @@ import {
   UserCircle,
   LogOut,
 } from 'lucide-react'
+import idb from '../../assets/idb.png'
 
 const navItems = [
   { to: '/dashboard',       icon: LayoutDashboard, label: 'Dashboard'       },
@@ -27,11 +28,14 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 h-screen bg-[#1a2535] flex flex-col fixed left-0 top-0 z-50">
-      {/* Logo */}
+      {/* ── Logo area ── */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-        <div className="w-9 h-9 bg-[#2e7d5e] rounded-lg flex items-center justify-center shrink-0">
-          <span className="text-white font-bold text-sm tracking-tight">IDB</span>
-        </div>
+        {/* IDB logo image replaces the old green text box */}
+        <img
+          src={idb}
+          alt="IDB Logo"
+          className="w-10 h-10 rounded-lg object-contain shrink-0"
+        />
         <div>
           <p className="text-white text-sm font-semibold leading-tight">IDB Loan System</p>
           <p className="text-slate-400 text-[10px]">Management Portal</p>
@@ -47,7 +51,7 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                 isActive
-                  ? 'bg-[#2e7d5e] text-white'
+                  ? 'bg-[#e09510] text-white'
                   : 'text-slate-400 hover:text-white hover:bg-white/5'
               }`
             }
