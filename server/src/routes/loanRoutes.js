@@ -1,15 +1,20 @@
 import express from "express";
-import { getLoans, createLoan, updateLoanStatus } from "../controllers/loanController.js";
+import {
+  getLoans,
+  getLoanById,
+  createLoan,
+  updateLoanStatus,
+  getLoanStats,
+} from "../controllers/loanController.js";
+import upload from "../middleware/uploadMiddleware.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// GET all loans for the dashboard table
-router.get("/", getLoans);
-
-// POST a new loan (for the application form later)
-router.post("/apply", createLoan);
-
-// PATCH to update status (Pending -> Approved)
-router.patch("/:id/status", updateLoanStatus);
+router.get("/stats", protect, getLoanStats);
+router.get("/", protect, getLoans);
+router.get("/:id", protect, getLoanById);
+router.post("/apply", protect, upload.array("proofDocuments", 5), createLoan);
+router.patch("/:id/status", protect, updateLoanStatus);
 
 export default router;
