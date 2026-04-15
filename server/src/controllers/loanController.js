@@ -62,7 +62,21 @@ export const getLoanById = async (req, res) => {
 // POST create new loan
 export const createLoan = async (req, res) => {
   try {
-    const newLoan = new Loan(req.body);
+    // Build proof documents array from uploaded files
+    const proofDocuments =
+      req.files?.map((file) => ({
+        fileName: file.originalname,
+        filePath: file.path,
+        fileType: file.mimetype,
+        uploadedAt: new Date(),
+      })) || [];
+
+    const newLoan = new Loan({
+      ...req.body,
+      amount: Number(req.body.amount),
+      proofDocuments,
+    });
+
     await newLoan.save();
     res.status(201).json(newLoan);
   } catch (error) {

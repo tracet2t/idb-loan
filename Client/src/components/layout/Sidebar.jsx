@@ -1,43 +1,45 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
+  PlusCircle,
   Users,
   Database,
   UserCircle,
   LogOut,
-} from 'lucide-react'
-import idb from '../../assets/idb.png'
+} from "lucide-react";
+import idb from "../../assets/idb.png";
 
 const navItems = [
-  { to: '/dashboard',       icon: LayoutDashboard, label: 'Dashboard'       },
-  { to: '/applications',    icon: FileText,         label: 'Applications'    },
-  { to: '/user-management', icon: Users,            label: 'User Management' },
-  { to: '/reference-data',  icon: Database,         label: 'Reference Data'  },
-  { to: '/my-profile',      icon: UserCircle,       label: 'My Profile'      },
-]
+  { to: "/applications", icon: FileText, label: "Loan Queue" },
+  { to: "/create-loan", icon: PlusCircle, label: "New Application" },
+  { to: "/user-management", icon: Users, label: "User Management" },
+  { to: "/reference-data", icon: Database, label: "Reference Data" },
+  { to: "/my-profile", icon: UserCircle, label: "My Profile" },
+];
 
 export default function Sidebar() {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('role')
-    navigate('/login')
-  }
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    navigate("/login");
+  };
 
   return (
     <aside className="w-64 h-screen bg-[#1a2535] flex flex-col fixed left-0 top-0 z-50">
-      {/* ── Logo area ── */}
+      {/* Logo area */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-        {/* IDB logo image replaces the old green text box */}
         <img
           src={idb}
           alt="IDB Logo"
           className="w-10 h-10 rounded-lg object-contain shrink-0"
         />
         <div>
-          <p className="text-white text-sm font-semibold leading-tight">IDB Loan System</p>
+          <p className="text-white text-sm font-semibold leading-tight">
+            IDB Loan System
+          </p>
           <p className="text-slate-400 text-[10px]">Management Portal</p>
         </div>
       </div>
@@ -51,8 +53,8 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                 isActive
-                  ? 'bg-[#e09510] text-white'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? "bg-[#e09510] text-white"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
               }`
             }
           >
@@ -73,5 +75,5 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
-  )
+  );
 }
