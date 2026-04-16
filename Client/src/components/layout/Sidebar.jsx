@@ -10,7 +10,7 @@ import {
 import idb from '../../assets/idb.png'
 
 const navItems = [
-  { to: '/dashboard',       icon: LayoutDashboard, label: 'Dashboard'       },
+  { to: '/dashboard',       icon: LayoutDashboard,  label: 'Dashboard'       },
   { to: '/applications',    icon: FileText,         label: 'Applications'    },
   { to: '/user-management', icon: Users,            label: 'User Management' },
   { to: '/reference-data',  icon: Database,         label: 'Reference Data'  },

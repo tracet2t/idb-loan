@@ -48,8 +48,10 @@ import toast, { Toaster } from 'react-hot-toast'
 
 import { loanService } from '../api/loanService'
 import LoanDetailModal from '../components/LoanDetailModal'
+import EditLoanModal from '../components/ui/EditLoanModal'
 import SearchInput from '../components/ui/SearchInput'
 import FilterSelect from '../components/ui/FilterSelect'
+
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const REGIONS = [
@@ -191,6 +193,8 @@ export default function LoanQueue() {
   const [approvingId,    setApprovingId]    = useState(null)
   const [approveLoading, setApproveLoading] = useState(false)
   const [exporting,      setExporting]      = useState(false)
+  const [editLoan, setEditLoan] = useState(null)
+  const [editOpen, setEditOpen] = useState(false)
 
   // ── Table sort state (TanStack) ───────────────────────────────────────
   const [sorting, setSorting] = useState([])
@@ -261,7 +265,14 @@ export default function LoanQueue() {
     setModalOpen(true)
   }
 
-  // ── Excel export (SheetJS) ────────────────────────────────────────────
+  const handleEditSave = async (id, data) => {
+    await loanService.updateLoanDetails(id, data)
+    toast.success('Loan updated successfully!')
+    fetchLoans()
+  }
+
+
+  // ── Excel export (ExcelJS) ────────────────────────────────────────────
  // Replace the handleExport function body:
 const handleExport = async () => {
   setExporting(true)
@@ -469,12 +480,16 @@ const handleExport = async () => {
                 />
               )}
 
-              <button
-                className="text-xs text-slate-500 hover:text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all"
-                aria-label="Edit loan"
-              >
-                Edit
-              </button>
+           
+              {loan.status === 'Pending' && (
+                <button
+                  onClick={() => { setEditLoan(loan); setEditOpen(true) }}
+                  className="text-xs text-slate-500 hover:text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all"
+                  aria-label="Edit loan"
+                >
+                  Edit
+                </button>
+              )}
             </div>
           )
         },
@@ -807,6 +822,12 @@ const handleExport = async () => {
           </div>
         </Dialog>
       </Transition>
+      <EditLoanModal
+        open={editOpen}
+        loan={editLoan}
+        onClose={() => { setEditOpen(false); setEditLoan(null) }}
+        onSave={handleEditSave}
+      />
     </>
   )
 }

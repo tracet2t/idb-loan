@@ -12,6 +12,9 @@ export const loanService = {
   updateLoanStatus: (id, status, remarks = '') =>
     api.patch(`/loans/${id}/status`, { status, remarks }),
 
+  // PATCH /api/loans/:id/details — edit details of Pending loans only
+  updateLoanDetails: (id, data) => api.patch(`/loans/${id}/details`, data),
+
   // GET /api/loans/stats — counts for dashboard cards
   getLoanStats: () => api.get('/loans/stats'),
 }

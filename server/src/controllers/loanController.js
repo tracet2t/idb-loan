@@ -87,6 +87,33 @@ export const updateLoanStatus = async (req, res) => {
   }
 };
 
+// PATCH update full loan details (Pending loans only)
+export const updateLoanDetails = async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.id);
+    if (!loan) return res.status(404).json({ message: "Loan not found" });
+
+    if (loan.status !== "Pending") {
+      return res.status(403).json({ message: "Only Pending loans can be edited" });
+    }
+
+    const allowedFields = [
+      "applicantName", "nic", "contactNumber",
+      "region", "sector", "amount",
+      "permanentAddress", "loanPurpose", "remarks", "priority"
+    ];
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) loan[field] = req.body[field];
+    });
+
+    await loan.save();
+    res.status(200).json(loan);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 // GET loan stats for dashboard
 export const getLoanStats = async (req, res) => {
   try {
