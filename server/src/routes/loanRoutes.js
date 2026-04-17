@@ -29,7 +29,8 @@
 
 import express from "express";
 import { 
-  getLoans, 
+  getLoans,
+  getLoanById, 
   createLoan, 
   updateLoanStatus, 
   updateLoanDetails,
@@ -44,13 +45,14 @@ const router = express.Router();
 router.get("/", getLoans);
 router.get("/regions", getRegions);
 router.get("/sectors", getSectors);
+router.get("/stats", getLoanStats);
+router.get("/:id", getLoanById);
 
-// ✅ இதோ மாற்றம்! பழைய router.post("/apply", createLoan) வரியை நீக்கிவிட்டு
-// இந்த ஒரு வரியை மட்டும் வைக்கவும்.
 router.post('/apply', upload.array('attachments', 10), createLoan);
 
 // PATCH routes
 router.patch("/:id/status", updateLoanStatus);
 router.patch("/:id/details", updateLoanDetails); 
+router.patch("/:id/approve", updateLoanStatus);
 
 export default router;

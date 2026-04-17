@@ -245,8 +245,8 @@ export default function LoanQueue() {
       api.get('/loans/sectors')
     ]);
 
-    console.log("Full Regions Response:", regRes);
-    console.log("Data Inside Regions:", regRes.data);
+    // console.log("Full Regions Response:", regRes);
+    // console.log("Data Inside Regions:", regRes.data);
     if (regRes.data && Array.isArray(regRes.data)) {
       const mappedRegions = regRes.data
         .map(r => (typeof r === 'string' ? r : r.name))
@@ -279,9 +279,9 @@ export default function LoanQueue() {
 const handleApprove = useCallback(async (id) => {
   setApproveLoading(true);
   try {
-    await api.patch(`/loans/${id}/approve`);
+    await api.patch(`/loans/${id}/approve`, { status: 'Approved' });
     toast.success('Loan approved successfully');
-    fetchLoans(); // இது ஏற்கனவே useCallback-ல் உள்ளது
+    fetchLoans(); 
   } catch (error) {
     toast.error(error.response?.data?.message || 'Approval failed');
   } finally {
