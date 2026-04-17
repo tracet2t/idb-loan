@@ -23,10 +23,25 @@ export default function Login() {
 
     try {
       const res = await api.post("/auth/login", form);
-      // ── Save token so axios interceptor attaches it to all future requests ──
+      
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("role", res.data.role);
-      navigate("/dashboard");
+      localStorage.setItem("isFirstLogin", res.data.isFirstLogin);
+
+      const { role, isFirstLogin } = res.data;
+
+      if (role === "data-entry") {
+        if (isFirstLogin) {
+          navigate("/my-profile");
+        } else {
+          navigate("/applications");
+        }
+      } else if (role === "super-admin") {
+        navigate("/dashboard");
+      } else {
+        navigate("/dashboard");
+      }
+
     } catch (err) {
       if (err.response) {
         setError(err.response.data.message || "Invalid email or password.");
@@ -94,21 +109,9 @@ export default function Login() {
               </div>
               <button type="submit" disabled={loading}
                 className="w-full py-3 bg-[#F5A623] hover:bg-[#e09510] active:bg-[#c8840e] text-white font-bold text-base rounded-lg transition-all duration-200 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                {loading ? (
-                  <>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="animate-spin">
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    Signing in...
-                  </>
-                ) : "Login"}
+                {loading ? "Signing in..." : "Login"}
               </button>
             </form>
-
-            <p className="text-center text-[10px] text-gray-400 mt-6 leading-relaxed">
-              For authorized IDB staff only · All activity is monitored<br />
-              © {new Date().getFullYear()} Industrial Development Board, Sri Lanka
-            </p>
           </div>
         </div>
       </div>

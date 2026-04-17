@@ -51,18 +51,18 @@ import LoanDetailModal from '../components/LoanDetailModal'
 import EditLoanModal from '../components/ui/EditLoanModal'
 import SearchInput from '../components/ui/SearchInput'
 import FilterSelect from '../components/ui/FilterSelect'
-
+import api from '../api/axios';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-const REGIONS = [
-  'Northern', 'Southern', 'Central', 'Western', 'Eastern',
-  'Sabaragamuwa', 'North Central', 'North Western', 'Uva',
-]
-const SECTORS = [
-  'Agriculture', 'Fisheries', 'SME', 'Technology',
-  'Education', 'Healthcare', 'Manufacturing',
-]
-const STATUSES = ['Pending', 'Approved', 'Rejected']
+// const REGIONS = [
+//   'Northern', 'Southern', 'Central', 'Western', 'Eastern',
+//   'Sabaragamuwa', 'North Central', 'North Western', 'Uva',
+// ]
+// const SECTORS = [
+//   'Agriculture', 'Fisheries', 'SME', 'Technology',
+//   'Education', 'Healthcare', 'Manufacturing',
+// ]
+const STATUSES = ['Pending', 'Approved']
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50]
 
@@ -172,6 +172,7 @@ function ApproveCell({ loanId, approvingId, setApprovingId, onApprove, approveLo
 //  Main component
 // ═══════════════════════════════════════════════════════════════════════════
 export default function LoanQueue() {
+  const userRole = localStorage.getItem('role') || "";
   // ── Data state ────────────────────────────────────────────────────────
   const [loans,        setLoans]        = useState([])
   const [serverPagination, setServerPag] = useState({ total: 0, page: 1, totalPages: 1 })
@@ -180,10 +181,10 @@ export default function LoanQueue() {
 
   // ── Filter state ──────────────────────────────────────────────────────
   const [search,  setSearch]  = useState('')
-  const [region,  setRegion]  = useState('')
-  const [sector,  setSector]  = useState('')
+  const [regions, setRegions] = useState([]); 
+  const [sectors, setSectors] = useState([]);
   const [status,  setStatus]  = useState('')
-  const [date,    setDate]    = useState(null)   // Date | null (react-datepicker)
+  const [date,    setDate]    = useState(null)   
   const [page,    setPage]    = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
@@ -199,7 +200,7 @@ export default function LoanQueue() {
   // ── Table sort state (TanStack) ───────────────────────────────────────
   const [sorting, setSorting] = useState([])
 
-  const hasFilters = !!(search || region || sector || status || date)
+  const hasFilters = !!(search || regions || sectors || status || date)
 
   // ── Fetch ─────────────────────────────────────────────────────────────
   const fetchLoans = useCallback(async () => {
@@ -208,8 +209,8 @@ export default function LoanQueue() {
     try {
       const params = { page, limit: pageSize }
       if (search) params.search = search
-      if (region) params.region = region
-      if (sector) params.sector = sector
+      if (regions) params.region = regions
+      if (sectors) params.sector = sectors
       if (status) params.status = status
 
       const res  = await loanService.getLoans(params)
@@ -231,29 +232,63 @@ export default function LoanQueue() {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, search, region, sector, status, date])
+  }, [page, pageSize, search, regions, sectors, status, date])
 
   useEffect(() => { fetchLoans() }, [fetchLoans])
-  useEffect(() => { setPage(1)   }, [search, region, sector, status, date, pageSize])
+  useEffect(() => { setPage(1)   }, [search, regions, sectors, status, date, pageSize])
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+  try {
+    const [regRes, secRes] = await Promise.all([
+      api.get('/loans/regions'),
+      api.get('/loans/sectors')
+    ]);
+
+    console.log("Full Regions Response:", regRes);
+    console.log("Data Inside Regions:", regRes.data);
+    if (regRes.data && Array.isArray(regRes.data)) {
+      const mappedRegions = regRes.data
+        .map(r => (typeof r === 'string' ? r : r.name))
+        .filter(name => name); 
+      
+      setRegions(mappedRegions);
+    }
+    
+    if (secRes.data && Array.isArray(secRes.data)) {
+      const mappedSectors = secRes.data
+        .map(s => (typeof s === 'string' ? s : s.name))
+        .filter(name => name);
+        
+      setSectors(mappedSectors);
+    }
+  } catch (err) {
+    console.error("Metadata fetch error:", err);
+    setRegions([]);
+    setSectors([]);
+  }
+  }
+    fetchMetadata();
+  }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────
   const clearFilters = () => {
-    setSearch(''); setRegion(''); setSector(''); setStatus(''); setDate(null)
+    setSearch(''); setRegions(''); setSectors(''); setStatus(''); setDate(null)
   }
 
-  const handleApprove = async (id) => {
-    setApproveLoading(true)
-    try {
-      await loanService.updateLoanStatus(id, 'Approved', 'Approved by officer')
-      setApprovingId(null)
-      toast.success('Loan approved successfully!')
-      fetchLoans()
-    } catch (err) {
-      toast.error(err.response?.data?.message ?? 'Approval failed')
-    } finally {
-      setApproveLoading(false)
-    }
+const handleApprove = useCallback(async (id) => {
+  setApproveLoading(true);
+  try {
+    await api.patch(`/loans/${id}/approve`);
+    toast.success('Loan approved successfully');
+    fetchLoans(); // இது ஏற்கனவே useCallback-ல் உள்ளது
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'Approval failed');
+  } finally {
+    setApproveLoading(false);
+    setApprovingId(null);
   }
+}, [fetchLoans]);
 
   const handleView = async (loan) => {
     try {
@@ -279,8 +314,8 @@ const handleExport = async () => {
   try {
     const params = { page: 1, limit: 9999 }
     if (search) params.search = search
-    if (region) params.region = region
-    if (sector) params.sector = sector
+    if (regions) params.region = regions
+    if (sectors) params.sector = sectors
     if (status) params.status = status
     const res  = await loanService.getLoans(params)
     let   data = res.data.loans
@@ -386,6 +421,7 @@ const handleExport = async () => {
   // ─── TanStack Table column definitions ─────────────────────────────────
   const columns = useMemo(
     () => [
+      
       {
         id: 'serial',
         header: 'ID',
@@ -470,7 +506,7 @@ const handleExport = async () => {
               </button>
 
               {/* Approve (Pending only) */}
-              {loan.status === 'Pending' && (
+              {loan.status === 'Pending' && userRole === 'super-admin' &&(
                 <ApproveCell
                   loanId={loan._id}
                   approvingId={approvingId}
@@ -481,7 +517,7 @@ const handleExport = async () => {
               )}
 
            
-              {loan.status === 'Pending' && (
+              {loan.status === 'Pending' && (userRole === 'super-admin' || userRole === 'data-entry') &&(
                 <button
                   onClick={() => { setEditLoan(loan); setEditOpen(true) }}
                   className="text-xs text-slate-500 hover:text-slate-700 border border-slate-200 px-2.5 py-1.5 rounded-lg transition-all"
@@ -496,7 +532,8 @@ const handleExport = async () => {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [serverPagination.page, pageSize, approvingId, approveLoading]
+    // [serverPagination.page, pageSize, approvingId, approveLoading]
+    [serverPagination.page, pageSize, approvingId, approveLoading, userRole, handleApprove]
   )
 
   // ─── TanStack Table instance ────────────────────────────────────────────
@@ -575,16 +612,16 @@ const handleExport = async () => {
           />
 
           <FilterSelect
-            options={REGIONS}
-            value={region}
-            onChange={setRegion}
+            options={regions}
+            value={regions}
+            onChange={setRegions}
             placeholder="All Regions"
           />
 
           <FilterSelect
-            options={SECTORS}
-            value={sector}
-            onChange={setSector}
+            options={sectors}
+            value={sectors}
+            onChange={setSectors}
             placeholder="All Sectors"
           />
 

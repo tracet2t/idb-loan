@@ -3,6 +3,13 @@ import mongoose from "mongoose";
 const loanSchema = new mongoose.Schema({
   applicantName: { type: String, required: true },
   nic: { type: String, required: true, unique: true },
+  attachments: [
+    {
+      name: { type: String },
+      path: { type: String },
+      type: { type: String }
+    }
+  ],
   contactNumber:    { type: String, default: '' },  
   region: { type: String, required: true }, // e.g., Southern, Northern
   sector: { type: String, required: true }, // e.g., Fisheries, SME, Agriculture

@@ -1,4 +1,4 @@
-import { X, User, MapPin, Briefcase, Calendar, DollarSign, FileText, AlertCircle } from 'lucide-react'
+import { X, User, MapPin, Briefcase, Calendar, DollarSign, FileText, AlertCircle, Paperclip } from 'lucide-react'
 
 function DetailRow({ icon: Icon, label, value, mono = false }) {
   return (
@@ -18,11 +18,9 @@ function DetailRow({ icon: Icon, label, value, mono = false }) {
 
 const STATUS_STYLES = {
   Approved: 'bg-[#2e7d5e]/10 text-[#2e7d5e] border border-[#2e7d5e]/30',
-  Pending:  'bg-amber-50 text-amber-700 border border-amber-200',
-  Rejected: 'bg-red-50 text-red-600 border border-red-200',
-}
+  Pending:  'bg-amber-50 text-amber-700 border border-amber-200'}
 
-export default function LoanDetailModal({ loan, onClose, onApprove }) {
+export default function LoanDetailModal({ loan, onClose}) {
   if (!loan) return null
 
   const appliedDate = loan.appliedDate
@@ -79,6 +77,36 @@ export default function LoanDetailModal({ loan, onClose, onApprove }) {
           <DetailRow icon={Calendar}   label="Applied Date"   value={appliedDate} />
         </div>
 
+        {/* Attachments Section - ✅ இங்கே அட்டாச்மென்ட்கள் காட்டப்படும் */}
+          <div className="px-6 pb-5">
+            <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Paperclip size={13} /> Attachments
+            </p>
+            <div className="space-y-2">
+              {loan.attachments && loan.attachments.length > 0 ? (
+                loan.attachments.map((file, idx) => (
+                  <a 
+                    key={idx}
+                    href={`http://localhost:5000/${file.path}`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 transition-all group"
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText size={18} className="text-slate-400 group-hover:text-emerald-600" />
+                      <span className="text-sm text-slate-600 truncate group-hover:text-emerald-700 font-medium">
+                        {file.name}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-1 rounded">VIEW</span>
+                  </a>
+                ))
+              ) : (
+                <p className="text-sm text-slate-400 italic">No documents attached.</p>
+              )}
+            </div>
+          </div>
+
         {/* Remarks */}
         {loan.remarks && (
           <div className="px-6 pb-4">
@@ -101,14 +129,14 @@ export default function LoanDetailModal({ loan, onClose, onApprove }) {
             Close
           </button>
 
-          {loan.status === 'Pending' && (
+          {/* {loan.status === 'Pending' && (
             <button
               onClick={() => onApprove(loan._id)}
               className="px-5 py-2 text-sm font-semibold bg-[#2e7d5e] text-white rounded-lg hover:bg-[#256b50] transition"
             >
               Approve This Loan
             </button>
-          )}
+          )} */}
         </div>
       </div>
     </div>

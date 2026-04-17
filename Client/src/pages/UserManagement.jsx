@@ -9,7 +9,8 @@ import EditUserModal      from '../components/users/EditUserModal'
 
 // ─── Role badge ────────────────────────────────────────────────────────────
 function RoleBadge({ role }) {
-  const isAdmin = role === 'super-admin'
+  const normalizedRole = role?.toLowerCase()?.replace(/\s+/g, '-');
+  const isAdmin = normalizedRole === 'super-admin'
   return (
     <span
       className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${

@@ -62,10 +62,39 @@ export const getLoanById = async (req, res) => {
 // POST create new loan
 export const createLoan = async (req, res) => {
   try {
-    const newLoan = new Loan(req.body);
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ message: "No data received" });
+    }    
+
+    const b = req.body;
+
+    const getSingleVal = (val) => Array.isArray(val) ? val[0] : val;
+
+    const loanData = {
+      applicantName: getSingleVal(b.applicantName),
+      nic: getSingleVal(b.nic),
+      contactNumber: getSingleVal(b.phone) || '', 
+      region: getSingleVal(b.region),
+      sector: getSingleVal(b.sector),
+      amount: Number(getSingleVal(b.amountRequested)), 
+      loanPurpose: getSingleVal(b.description) || '',
+      permanentAddress: getSingleVal(b.permanentAddress)
+    };
+
+    if (req.files && req.files.length > 0) {
+      loanData.attachments = req.files.map(file => ({
+        name: file.originalname,
+        path: file.path.replace(/\\/g, '/'),
+        type: file.mimetype
+      }));
+    }
+
+    const newLoan = new Loan(loanData);
     await newLoan.save();
     res.status(201).json(newLoan);
+
   } catch (error) {
+    console.error("Create Loan Error:", error);
     res.status(400).json({ message: error.message });
   }
 };

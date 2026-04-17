@@ -1,18 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import { Fragment } from 'react'
-import { X, User, Phone, MapPin, Briefcase, DollarSign, FileText, AlertCircle, Hash } from 'lucide-react'
+import { X, User, Phone, MapPin, Briefcase, DollarSign, FileText, AlertCircle, Hash, Paperclip, Loader2 } from 'lucide-react'
+import api from '../../api/axios' ;
 
-const REGIONS = [
-  'Northern', 'Southern', 'Central', 'Western', 'Eastern',
-  'Sabaragamuwa', 'North Central', 'North Western', 'Uva',
-]
-const SECTORS = [
-  'Agriculture', 'Fisheries', 'SME', 'Technology',
-  'Education', 'Healthcare', 'Manufacturing',
-]
-
-function FieldGroup({ icon: Icon, label, required, children }) {
+// --- Sub-Component for Fields ---
+function FieldGroup({ icon: Icon, label, required, children, error }) {
   return (
     <div className="space-y-1">
       <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
@@ -21,6 +13,7 @@ function FieldGroup({ icon: Icon, label, required, children }) {
         {required && <span className="text-red-400">*</span>}
       </label>
       {children}
+      {error && <p className="text-[11px] text-red-500 mt-1">{error}</p>}
     </div>
   )
 }
@@ -28,46 +21,74 @@ function FieldGroup({ icon: Icon, label, required, children }) {
 const inputClass = `
   w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-lg
   focus:outline-none focus:ring-2 focus:ring-[#2e7d5e]/30 focus:border-[#2e7d5e]
-  text-slate-700 placeholder-slate-400 transition bg-white
+  text-slate-700 placeholder-slate-400 transition bg-white disabled:bg-slate-50
 `
 
 export default function EditLoanModal({ open, loan, onClose, onSave }) {
-  const [form, setForm]     = useState({})
+  const [form, setForm] = useState({})
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  
+  // Metadata states (Regions/Sectors)
+  const [regions, setRegions] = useState([])
+  const [sectors, setSectors] = useState([])
+
+  // --- Metadata Fetching (Step 1: Fix Hardcoding) ---
+  const fetchMetadata = useCallback(async () => {
+    try {
+      const [regRes, secRes] = await Promise.all([
+        api.get('/loans/regions'),
+        api.get('/loans/sectors')
+      ])
+
+      if (Array.isArray(regRes.data)) {
+        const mappedRegions = regRes.data.map(r => typeof r === 'string' ? r : r.name)
+        setRegions(mappedRegions)
+      }
+      
+      if (Array.isArray(secRes.data)) {
+        const mappedSectors = secRes.data.map(s => typeof s === 'string' ? s : s.name)
+        setSectors(mappedSectors)
+      }
+    } catch (err) {
+      console.error("Metadata fetch error in Modal:", err)
+    }
+  }, [])
 
   useEffect(() => {
-    if (open && loan) {
-      setForm({
-        applicantName:    loan.applicantName    ?? '',
-        nic:              loan.nic              ?? '',
-        contactNumber:    loan.contactNumber    ?? '',
-        region:           loan.region           ?? '',
-        sector:           loan.sector           ?? '',
-        amount:           loan.amount           ?? '',
-        permanentAddress: loan.permanentAddress ?? '',
-        loanPurpose:      loan.loanPurpose      ?? '',
-        remarks:          loan.remarks          ?? '',
-        priority:         loan.priority         ?? false,
-      })
-      setErrors({})
+    if (open) {
+      fetchMetadata()
+      if (loan) {
+        setForm({
+          applicantName:    loan.applicantName    ?? '',
+          nic:              loan.nic              ?? '',
+          contactNumber:    loan.contactNumber    ?? '',
+          region:           loan.region           ?? '',
+          sector:           loan.sector           ?? '',
+          amount:           loan.amount           ?? '',
+          permanentAddress: loan.permanentAddress ?? '',
+          loanPurpose:      loan.loanPurpose      ?? '',
+          remarks:          loan.remarks          ?? '',
+          priority:         loan.priority         ?? false,
+        })
+        setErrors({})
+      }
     }
-  }, [open, loan])
+  }, [open, loan, fetchMetadata])
 
-  const set = (field) => (e) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value
-    setForm((prev) => ({ ...prev, [field]: value }))
-    setErrors((prev) => ({ ...prev, [field]: '' }))
+  // --- Handlers ---
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }))
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }))
   }
 
   const validate = () => {
     const e = {}
     if (!form.applicantName?.trim()) e.applicantName = 'Full name is required'
-    if (!form.nic?.trim())           e.nic           = 'NIC is required'
-    if (!form.region)                e.region        = 'Please select a region'
-    if (!form.sector)                e.sector        = 'Please select a sector'
-    if (!form.amount || Number(form.amount) <= 0)
-                                     e.amount        = 'Enter a valid amount'
+    if (!form.nic?.trim()) e.nic = 'NIC is required'
+    if (!form.region) e.region = 'Please select a region'
+    if (!form.sector) e.sector = 'Please select a sector'
+    if (!form.amount || Number(form.amount) <= 0) e.amount = 'Enter a valid amount'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -88,8 +109,6 @@ export default function EditLoanModal({ open, loan, onClose, onSave }) {
   return (
     <Transition appear show={open} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
-
-        {/* Backdrop */}
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-200" enterFrom="opacity-0" enterTo="opacity-100"
@@ -98,202 +117,134 @@ export default function EditLoanModal({ open, loan, onClose, onSave }) {
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
         </Transition.Child>
 
-        {/* Panel */}
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Transition.Child
             as={Fragment}
             enter="ease-out duration-200" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
             leave="ease-in duration-150"  leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
           >
-            <Dialog.Panel className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl">
-
+            <Dialog.Panel className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-white rounded-2xl shadow-2xl flex flex-col">
+              
               {/* Header */}
-              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white border-b border-slate-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
                 <div>
-                  <Dialog.Title className="text-base font-bold text-slate-800">
-                    Edit Loan Application
-                  </Dialog.Title>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">{loan?._id}</p>
+                  <Dialog.Title className="text-base font-bold text-slate-800">Edit Loan Application</Dialog.Title>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase tracking-tighter">ID: {loan?._id}</p>
                 </div>
-                <button
-                  onClick={onClose}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition"
-                >
-                  <X size={16} />
+                <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 transition">
+                  <X size={18} />
                 </button>
               </div>
 
-              {/* Body */}
-              <div className="px-6 py-5 space-y-6">
-
-                {/* General error */}
+              {/* Scrollable Body */}
+              <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
                 {errors.general && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl animate-pulse">
                     <AlertCircle size={15} /> {errors.general}
                   </div>
                 )}
 
-                {/* Applicant Info */}
-                <section>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
-                    Applicant Information
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                    <FieldGroup icon={User} label="Full Name" required>
-                      <input
-                        type="text"
-                        value={form.applicantName ?? ''}
-                        onChange={set('applicantName')}
-                        placeholder="e.g. Priya Wickramasinghe"
-                        className={inputClass}
-                      />
-                      {errors.applicantName && <p className="text-xs text-red-500">{errors.applicantName}</p>}
-                    </FieldGroup>
-
-                    <FieldGroup icon={Hash} label="NIC Number" required>
-                      <input
-                        type="text"
-                        value={form.nic ?? ''}
-                        onChange={set('nic')}
-                        placeholder="e.g. 199023456789"
-                        className={`${inputClass} font-mono`}
-                      />
-                      {errors.nic && <p className="text-xs text-red-500">{errors.nic}</p>}
-                    </FieldGroup>
-
-                    <FieldGroup icon={Phone} label="Contact Number">
-                      <input
-                        type="tel"
-                        value={form.contactNumber ?? ''}
-                        onChange={set('contactNumber')}
-                        placeholder="e.g. +94 77 345 6789"
-                        className={inputClass}
-                      />
-                    </FieldGroup>
-
-                    <FieldGroup icon={DollarSign} label="Requested Amount (LKR)" required>
-                      <input
-                        type="number"
-                        value={form.amount ?? ''}
-                        onChange={set('amount')}
-                        min={1}
-                        placeholder="e.g. 350000"
-                        className={inputClass}
-                      />
-                      {errors.amount && <p className="text-xs text-red-500">{errors.amount}</p>}
-                    </FieldGroup>
-
+                {/* Section: Applicant */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Applicant Profile</span>
+                    <div className="h-px flex-1 bg-slate-100" />
                   </div>
-                </section>
 
-                {/* Location & Sector */}
-                <section>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
-                    Location & Sector
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FieldGroup icon={User} label="Full Name" required error={errors.applicantName}>
+                    <input type="text" value={form.applicantName || ''} onChange={e => handleChange('applicantName', e.target.value)} className={inputClass} />
+                  </FieldGroup>
 
-                    <FieldGroup icon={MapPin} label="Region" required>
-                      <select value={form.region ?? ''} onChange={set('region')} className={inputClass}>
-                        <option value="">Select Region</option>
-                        {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      {errors.region && <p className="text-xs text-red-500">{errors.region}</p>}
-                    </FieldGroup>
+                  <FieldGroup icon={Hash} label="NIC Number" required error={errors.nic}>
+                    <input type="text" value={form.nic || ''} onChange={e => handleChange('nic', e.target.value)} className={`${inputClass} font-mono`} />
+                  </FieldGroup>
 
-                    <FieldGroup icon={Briefcase} label="Sector" required>
-                      <select value={form.sector ?? ''} onChange={set('sector')} className={inputClass}>
-                        <option value="">Select Sector</option>
-                        {SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      {errors.sector && <p className="text-xs text-red-500">{errors.sector}</p>}
-                    </FieldGroup>
+                  <FieldGroup icon={Phone} label="Contact Number">
+                    <input type="tel" value={form.contactNumber || ''} onChange={e => handleChange('contactNumber', e.target.value)} className={inputClass} />
+                  </FieldGroup>
 
+                  <FieldGroup icon={DollarSign} label="Amount (LKR)" required error={errors.amount}>
+                    <input type="number" value={form.amount || ''} onChange={e => handleChange('amount', e.target.value)} className={inputClass} />
+                  </FieldGroup>
+                </div>
+
+                {/* Section: Context (Using Database Data) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Classification</span>
+                    <div className="h-px flex-1 bg-slate-100" />
+                  </div>
+
+                  <FieldGroup icon={MapPin} label="Region" required error={errors.region}>
+                    <select value={form.region || ''} onChange={e => handleChange('region', e.target.value)} className={inputClass}>
+                      <option value="">Select Region</option>
+                      {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </FieldGroup>
+
+                  <FieldGroup icon={Briefcase} label="Sector" required error={errors.sector}>
+                    <select value={form.sector || ''} onChange={e => handleChange('sector', e.target.value)} className={inputClass}>
+                      <option value="">Select Sector</option>
+                      {sectors.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </FieldGroup>
+
+                  <div className="sm:col-span-2">
                     <FieldGroup icon={MapPin} label="Permanent Address">
-                      <input
-                        type="text"
-                        value={form.permanentAddress ?? ''}
-                        onChange={set('permanentAddress')}
-                        placeholder="e.g. 45 Beach Rd, Galle"
-                        className={inputClass}
-                      />
+                      <input type="text" value={form.permanentAddress || ''} onChange={e => handleChange('permanentAddress', e.target.value)} className={inputClass} />
                     </FieldGroup>
-
                   </div>
-                </section>
+                </div>
 
-                {/* Loan Details */}
-                <section>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
-                    Loan Details
-                  </p>
-                  <div className="space-y-4">
-
-                    <FieldGroup icon={FileText} label="Loan Purpose / Business Details">
-                      <textarea
-                        value={form.loanPurpose ?? ''}
-                        onChange={set('loanPurpose')}
-                        placeholder="e.g. Boat engine repair"
-                        rows={2}
-                        className={`${inputClass} resize-none`}
-                      />
-                    </FieldGroup>
-
-                    <FieldGroup icon={AlertCircle} label="Remarks">
-                      <input
-                        type="text"
-                        value={form.remarks ?? ''}
-                        onChange={set('remarks')}
-                        placeholder="e.g. Documents to be verified"
-                        className={inputClass}
-                      />
-                    </FieldGroup>
-
-                    {/* Priority toggle */}
-                    <label className="flex items-center gap-3 cursor-pointer select-none w-fit">
-                      <div className="relative">
-                        <input
-                          type="checkbox"
-                          checked={form.priority ?? false}
-                          onChange={set('priority')}
-                          className="sr-only peer"
-                        />
-                        <div className="w-10 h-5 bg-slate-200 rounded-full peer peer-checked:bg-[#2e7d5e] transition-colors duration-200" />
-                        <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-5 transition-transform duration-200" />
-                      </div>
-                      <span className="text-sm text-slate-600 font-medium">Mark as Priority Application</span>
-                    </label>
-
+                {/* Section: Documents */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Verification Documents</span>
+                    <div className="h-px flex-1 bg-slate-100" />
                   </div>
-                </section>
+                  <div className="grid grid-cols-1 gap-2">
+                    {loan?.attachments?.length > 0 ? (
+                      loan.attachments.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl group hover:border-[#2e7d5e]/30 transition-all">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="p-2 bg-white rounded shadow-sm text-[#2e7d5e]"><FileText size={16} /></div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm text-slate-700 font-medium truncate">{file.name}</span>
+                              <span className="text-[10px] text-slate-400 uppercase">{file.type?.split('/')[1] || 'Doc'}</span>
+                            </div>
+                          </div>
+                          <a href={`http://localhost:5000/${file.path}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#2e7d5e] hover:bg-[#2e7d5e] hover:text-white px-3 py-1.5 rounded-lg transition-colors border border-[#2e7d5e]/20">View</a>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 border-2 border-dashed border-slate-100 rounded-2xl text-slate-400 text-xs">No documents attached.</div>
+                    )}
+                  </div>
+                </div>
 
+                {/* Priority Toggle */}
+                <label className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-pointer hover:bg-slate-100/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${form.priority ? 'bg-orange-100 text-orange-600' : 'bg-slate-200 text-slate-400'}`}>
+                      <AlertCircle size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-700">Urgent Priority</p>
+                      <p className="text-[10px] text-slate-500 uppercase">Mark for immediate review</p>
+                    </div>
+                  </div>
+                  <input type="checkbox" checked={form.priority || false} onChange={e => handleChange('priority', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-[#2e7d5e] focus:ring-[#2e7d5e]/30 cursor-pointer" />
+                </label>
               </div>
 
               {/* Footer */}
-              <div className="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 flex items-center justify-end gap-3">
-                <button
-                  onClick={onClose}
-                  disabled={loading}
-                  className="px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={loading}
-                  className="px-6 py-2 text-sm font-semibold text-white bg-[#2e7d5e] hover:bg-[#256b50] rounded-lg transition disabled:opacity-60 flex items-center gap-2"
-                >
-                  {loading && (
-                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                    </svg>
-                  )}
-                  {loading ? 'Saving…' : 'Save Changes'}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                <button onClick={onClose} disabled={loading} className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 transition disabled:opacity-50">Cancel</button>
+                <button onClick={handleSave} disabled={loading} className="px-6 py-2.5 bg-[#2e7d5e] hover:bg-[#256b50] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#2e7d5e]/20 transition-all disabled:opacity-70 flex items-center gap-2">
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {loading ? 'Processing...' : 'Save Changes'}
                 </button>
               </div>
-
             </Dialog.Panel>
           </Transition.Child>
         </div>

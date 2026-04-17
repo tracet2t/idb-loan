@@ -33,6 +33,7 @@ app.use("/api/loans", loanRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/reference", referenceRoutes);
+app.use('/uploads', express.static('uploads'));
 
 // 5. Health Check (Optional - good for testing)
 app.get("/", (req, res) => {

@@ -42,9 +42,20 @@ const customStyles = {
  *   className  – string   extra wrapper class
  */
 export default function FilterSelect({ options = [], value, onChange, placeholder = 'Select...', className = '' }) {
-  const selectOptions = options.map((o) => ({ value: o, label: o }))
-  const selected = value ? { value, label: value } : null
+  const safeOptions = Array.isArray(options) ? options : [];
 
+  const selectOptions = safeOptions.map((o) => {
+    const labelStr = typeof o === 'string' ? o : (o.name || o.label || '');
+    return { 
+      value: labelStr, 
+      label: labelStr.charAt(0).toUpperCase() + labelStr.slice(1) 
+    };
+  });
+
+const selected = value && typeof value === 'string' 
+  ? { value, label: value.charAt(0).toUpperCase() + value.slice(1) } 
+  : null;
+  
   return (
     <div className={`min-w-[150px] ${className}`}>
       <Select
