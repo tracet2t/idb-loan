@@ -41,6 +41,14 @@ build/Release
 node_modules/
 jspm_packages/
 
+<<<<<<< HEAD
+# Node modules
+node_modules/
+server/node_modules/
+Client/node_modules/
+
+=======
+>>>>>>> main
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
@@ -70,6 +78,10 @@ web_modules/
 .env.*
 !.env.example
 
+<<<<<<< HEAD
+
+=======
+>>>>>>> main
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -142,3 +154,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+<<<<<<< HEAD
+
+=======
+>>>>>>> main
