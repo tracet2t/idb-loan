@@ -1,0 +1,49 @@
+{
+  "name": "idb-loan (MERN)",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  // Forward all service ports to the host
+  "forwardPorts": [5000, 5173, 27017],
+  "portsAttributes": {
+    "5000": { "label": "Express API" },
+    "5173": { "label": "Vite Dev Server" },
+    "27017": { "label": "MongoDB", "onAutoForward": "silent" }
+  },
+
+  // Install npm dependencies for both packages after container creation
+  "postCreateCommand": "cd /workspace/server && npm install && cd /workspace/Client && npm install",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // JavaScript / Node
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "christian-kohler.npm-intellisense",
+        // React
+        "dsznajder.es7-react-js-snippets",
+        // MongoDB
+        "mongodb.mongodb-vscode",
+        // General quality-of-life
+        "PKief.material-icon-theme",
+        "streetsidesoftware.code-spell-checker"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        // Treat JSX as the default formatter for jsx files
+        "[javascriptreact]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "eslint.workingDirectories": [
+          { "directory": "Client", "changeProcessCWD": true }
+        ],
+        // Point the MongoDB extension straight at the containerised instance
+        "mdb.connectionSaving.defaultConnectionSavingLocation": "Workspace",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
