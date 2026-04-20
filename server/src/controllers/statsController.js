@@ -1,4 +1,5 @@
 import Loan from "../models/loan.js";
+import FundSettings from "../models/fundSettings.js";
 
 export const getDashboardStats = async (req, res) => {
   try {
@@ -10,9 +11,10 @@ export const getDashboardStats = async (req, res) => {
     const rejected = await Loan.countDocuments({ status: "Rejected" });
 
     // ── 2. Financial KPIs ──────────────────────────────────────
-    // Total allocation — read from env, default 50 million LKR
-    const totalAllocation =
-      Number(process.env.TOTAL_FUND_ALLOCATION) || 50000000;
+    // Total allocation — read from FundSettings collection
+    const currentYear = new Date().getFullYear();
+    const fundSettings = await FundSettings.findOne({ year: currentYear });
+    const totalAllocation = fundSettings?.totalAllocation || 0;
 
     // Sum of all approved loan amounts
     const approvedAmountResult = await Loan.aggregate([
@@ -53,7 +55,16 @@ export const getDashboardStats = async (req, res) => {
     ]);
 
     // ── 5. Monthly Trends (Stacked Bar + Line Chart) ────────────
+    const { sector: filterSector, region: filterRegion } = req.query;
+
+    const monthlyMatchStage = {};
+    if (filterSector) monthlyMatchStage.sector = filterSector;
+    if (filterRegion) monthlyMatchStage.region = filterRegion;
+
     const monthlyTrends = await Loan.aggregate([
+      ...(Object.keys(monthlyMatchStage).length
+        ? [{ $match: monthlyMatchStage }]
+        : []),
       {
         $group: {
           _id: {
@@ -62,10 +73,26 @@ export const getDashboardStats = async (req, res) => {
             status: "$status",
           },
           count: { $sum: 1 },
+          totalAmount: { $sum: "$amount" },
         },
       },
       { $sort: { "_id.year": 1, "_id.month": 1 } },
     ]);
+
+    // ── 5b. Regional breakdown filtered by sector ──────────────
+    const regionalBySector = filterSector
+      ? await Loan.aggregate([
+          { $match: { status: "Approved", sector: filterSector } },
+          {
+            $group: {
+              _id: "$region",
+              totalAmount: { $sum: "$amount" },
+              count: { $sum: 1 },
+            },
+          },
+          { $sort: { totalAmount: -1 } },
+        ])
+      : null;
 
     // Reshape monthly trends into chart-friendly format
     const monthNames = [
@@ -83,7 +110,7 @@ export const getDashboardStats = async (req, res) => {
       "Dec",
     ];
     const monthlyMap = {};
-    monthlyTrends.forEach(({ _id, count }) => {
+    monthlyTrends.forEach(({ _id, count, totalAmount }) => {
       const key = `${_id.year}-${String(_id.month).padStart(2, "0")}`;
       if (!monthlyMap[key]) {
         monthlyMap[key] = {
@@ -94,10 +121,14 @@ export const getDashboardStats = async (req, res) => {
           Approved: 0,
           Rejected: 0,
           total: 0,
+          approvedAmount: 0,
         };
       }
       monthlyMap[key][_id.status] = count;
       monthlyMap[key].total += count;
+      if (_id.status === "Approved") {
+        monthlyMap[key].approvedAmount += totalAmount;
+      }
     });
     const monthlyData = Object.values(monthlyMap).slice(-12); // last 12 months
 
@@ -131,6 +162,7 @@ export const getDashboardStats = async (req, res) => {
       monthlyData,
       recentApplications,
       recentApprovals,
+      regionalBySector,
     });
   } catch (err) {
     console.error("Dashboard Stats Error:", err);
