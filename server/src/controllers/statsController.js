@@ -41,7 +41,7 @@ export const getDashboardStats = async (req, res) => {
       { $sort: { totalAmount: -1 } },
     ]);
 
-    // ── 4. Regional Stats (Bar Chart) ──────────────────────────
+    // ── 4a. Regional Stats (Bar Chart) ──────────────────────────
     const regionalStats = await Loan.aggregate([
       { $match: { status: "Approved" } },
       {
@@ -53,6 +53,24 @@ export const getDashboardStats = async (req, res) => {
       },
       { $sort: { totalAmount: -1 } },
     ]);
+
+    // ── 4b. Cross Data — Sector x Region matrix ────────────────
+    const crossData = await Loan.aggregate([
+      { $match: { status: "Approved" } },
+      {
+        $group: {
+          _id: { sector: "$sector", region: "$region" },
+          totalAmount: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const crossDataFlat = crossData.map((d) => ({
+      sector: d._id.sector,
+      region: d._id.region,
+      totalAmount: d.totalAmount,
+      count: d.count,
+    }));
 
     // ── 5. Monthly Trends (Stacked Bar + Line Chart) ────────────
     const { sector: filterSector, region: filterRegion } = req.query;
@@ -159,6 +177,7 @@ export const getDashboardStats = async (req, res) => {
       },
       sectorStats,
       regionalStats,
+      crossData: crossDataFlat,
       monthlyData,
       recentApplications,
       recentApprovals,

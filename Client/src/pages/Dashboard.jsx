@@ -35,6 +35,8 @@ import {
 import api from "../api/axios";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 // ── Helpers ──────────────────────────────────────────────────
 const fmt = (n) =>
@@ -158,7 +160,7 @@ export default function Dashboard() {
   const [showFundModal, setShowFundModal] = useState(false);
   const [fundInput, setFundInput] = useState({
     amount: "",
-    year: new Date().getFullYear(),
+    date: new Date(),
     note: "",
   });
   const [fundLoading, setFundLoading] = useState(false);
@@ -180,6 +182,27 @@ export default function Dashboard() {
   const [selectedSector, setSelectedSector] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState(null);
 
+  // Fund history filters
+  const [fundSortBy, setFundSortBy] = useState("createdAt");
+  const [fundOrder, setFundOrder] = useState("desc");
+  const [fundChartData, setFundChartData] = useState([]);
+
+  // Edit/Delete modal
+  const [editRecord, setEditRecord] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Sector vs Region view
+  const [sectorRegionView, setSectorRegionView] = useState("bar"); // 'bar' or 'heatmap'
+  const sectorRegionRef = useRef(null);
+
+  // Merged chart toggles
+  const [showArea, setShowArea] = useState(true);
+  const [showBars, setShowBars] = useState(true);
+  const [showLine, setShowLine] = useState(true);
+
   // Chart refs for download
   const sectorRef = useRef(null);
   const regionalRef = useRef(null);
@@ -187,36 +210,40 @@ export default function Dashboard() {
   const gaugeRef = useRef(null);
 
   // ── Fetch dashboard data ──────────────────────────────────
-  const fetchStats = useCallback(async (sector = null, region = null) => {
-    try {
-      setLoading(true);
-      const params = {};
-      if (sector) params.sector = sector;
-      if (region) params.region = region;
-      const [statsRes, fundRes, historyRes] = await Promise.all([
-        api.get("/stats", { params }),
-        api.get("/fund-settings"),
-        api.get("/fund-settings/history"),
-      ]);
-      setData(statsRes.data);
-      setCurrentFund(fundRes.data);
-      setFundHistory(historyRes.data);
-      setFundInput((prev) => ({
-        ...prev,
-        amount: fundRes.data.totalAllocation || "",
-      }));
-    } catch (err) {
-      setError("Failed to load dashboard data.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const fetchStats = useCallback(
+    async (sector = null, region = null) => {
+      try {
+        setLoading(true);
+        const params = {};
+        if (sector) params.sector = sector;
+        if (region) params.region = region;
+
+        const [statsRes, fundRes, historyRes, chartRes] = await Promise.all([
+          api.get("/stats", { params }),
+          api.get("/fund-settings"),
+          api.get("/fund-settings/history", {
+            params: { sortBy: fundSortBy, order: fundOrder },
+          }),
+          api.get("/fund-settings/chart-data"),
+        ]);
+        setData(statsRes.data);
+        setCurrentFund(fundRes.data);
+        setFundHistory(historyRes.data);
+        setFundChartData(chartRes.data);
+        setFundInput((prev) => ({ ...prev, amount: "" }));
+      } catch (err) {
+        setError("Failed to load dashboard data.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fundSortBy, fundOrder],
+  );
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
 
-  // Re-fetch when cross-filter changes
   useEffect(() => {
     if (selectedSector || selectedRegion) {
       fetchStats(selectedSector, selectedRegion);
@@ -225,6 +252,11 @@ export default function Dashboard() {
     }
   }, [selectedSector, selectedRegion]);
 
+  // Auto-apply fund history filters
+  useEffect(() => {
+    fetchStats(selectedSector, selectedRegion);
+  }, [fundSortBy, fundOrder]);
+
   // ── Save fund allocation ──────────────────────────────────
   const handleSaveFund = async () => {
     setFundError("");
@@ -232,11 +264,22 @@ export default function Dashboard() {
       setFundError("Please enter a valid amount.");
       return;
     }
+    if (!fundInput.date) {
+      setFundError("Please select a date.");
+      return;
+    }
+
+    const selectedDate = new Date(fundInput.date);
+    console.log("Saving with date:", selectedDate);
+
     try {
       setFundLoading(true);
       const res = await api.post("/fund-settings", {
         totalAllocation: Number(fundInput.amount),
-        year: Number(fundInput.year),
+        year: selectedDate.getFullYear(),
+        month: selectedDate.getMonth() + 1,
+        day: selectedDate.getDate(),
+        date: selectedDate.toISOString(),
         note: fundInput.note,
       });
       setCurrentFund(res.data);
@@ -246,6 +289,49 @@ export default function Dashboard() {
       setFundError(err.response?.data?.message || "Failed to save.");
     } finally {
       setFundLoading(false);
+    }
+  };
+
+  // ── Edit fund record ──────────────────────────────────
+  const handleEditFund = async () => {
+    setFundError("");
+    if (
+      !editRecord.totalAllocation ||
+      Number(editRecord.totalAllocation) <= 0
+    ) {
+      setFundError("Please enter a valid amount.");
+      return;
+    }
+    try {
+      setFundLoading(true);
+      await api.patch(`/fund-settings/${editRecord._id}`, {
+        totalAllocation: Number(editRecord.totalAllocation),
+        month: Number(editRecord.month),
+        year: Number(editRecord.year),
+        note: editRecord.note,
+      });
+      setShowEditModal(false);
+      setEditRecord(null);
+      fetchStats();
+    } catch (err) {
+      setFundError(err.response?.data?.message || "Failed to update.");
+    } finally {
+      setFundLoading(false);
+    }
+  };
+
+  // ── Delete fund record ────────────────────────────────
+  const handleDeleteFund = async () => {
+    try {
+      setDeleteLoading(true);
+      await api.delete(`/fund-settings/${deleteTarget._id}`);
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+      fetchStats();
+    } catch (err) {
+      console.error("Delete error:", err);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -260,18 +346,44 @@ export default function Dashboard() {
   const exportExcel = async () => {
     if (!data) return;
     try {
+      const html2canvas = (await import("html2canvas")).default;
+
+      // ── Capture chart as base64 ──────────────────────────
+      const captureChart = async (ref) => {
+        if (!ref?.current) return null;
+        try {
+          const canvas = await html2canvas(ref.current, {
+            backgroundColor: "#ffffff",
+            scale: 1.5,
+            useCORS: true,
+          });
+          return canvas.toDataURL("image/png").split(",")[1];
+        } catch (e) {
+          console.error("Chart capture error:", e);
+          return null;
+        }
+      };
+
+      // Capture all charts
+      const [sectorImg, sectorRegionImg, trendsImg, gaugeImg] =
+        await Promise.all([
+          captureChart(sectorRef),
+          captureChart(sectorRegionRef),
+          captureChart(trendsRef),
+        ]);
+
       const wb = new ExcelJS.Workbook();
       wb.creator = "IDB Loan Portal";
       wb.created = new Date();
 
-      // ── Helper: style a header row ──────────────────────────
-      const styleHeader = (sheet, color = "FF1A2535") => {
+      // ── Helper: style header row ─────────────────────────
+      const styleHeader = (sheet) => {
         sheet.getRow(1).eachCell((cell) => {
           cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
           cell.fill = {
             type: "pattern",
             pattern: "solid",
-            fgColor: { argb: color },
+            fgColor: { argb: "FF2E7D5E" },
           };
           cell.alignment = { vertical: "middle", horizontal: "center" };
           cell.border = {
@@ -304,14 +416,23 @@ export default function Dashboard() {
         });
       };
 
-      // ── Sheet 1: KPI Summary ────────────────────────────────
+      // Helper: embed image into sheet
+      const embedImage = async (sheet, imgBase64, row, col, width, height) => {
+        if (!imgBase64) return;
+        const imgId = wb.addImage({ base64: imgBase64, extension: "png" });
+        sheet.addImage(imgId, {
+          tl: { col: col - 1, row: row - 1 },
+          ext: { width, height },
+        });
+      };
+
+      // ── Sheet 1: KPI Summary ─────────────────────────────
       const kpiSheet = wb.addWorksheet("📊 KPI Summary");
       kpiSheet.columns = [
         { header: "Metric", key: "metric", width: 30 },
         { header: "Value", key: "value", width: 25 },
       ];
-      styleHeader(kpiSheet, "FF2E7D5E");
-
+      styleHeader(kpiSheet);
       const kpiRows = [
         { metric: "Total Applications", value: kpi.totalApplications },
         { metric: "Pending", value: kpi.pending },
@@ -326,23 +447,14 @@ export default function Dashboard() {
         const row = kpiSheet.addRow(r);
         zebraRow(row, i);
         borderAll(row);
-        if (
-          [
-            "Total Allocation (LKR)",
-            "Approved Amount (LKR)",
-            "Balance Remaining (LKR)",
-          ].includes(r.metric)
-        ) {
+        if (r.metric.includes("LKR")) {
           row.getCell("value").numFmt = "#,##0";
           row.getCell("value").alignment = { horizontal: "right" };
-        }
-        if (r.metric === "Fund Utilization %") {
-          row.getCell("value").numFmt = '0.0"%"';
         }
       });
       kpiSheet.views = [{ state: "frozen", ySplit: 1 }];
 
-      // ── Sheet 2: Sector Stats ───────────────────────────────
+      // ── Sheet 2: Sector Stats + Chart ────────────────────
       const sectorSheet = wb.addWorksheet("🏭 Sector Stats");
       sectorSheet.columns = [
         { header: "#", key: "serial", width: 6 },
@@ -350,7 +462,7 @@ export default function Dashboard() {
         { header: "Total Amount (LKR)", key: "totalAmount", width: 22 },
         { header: "Number of Loans", key: "count", width: 18 },
       ];
-      styleHeader(sectorSheet, "FF2E7D5E");
+      styleHeader(sectorSheet);
       data.sectorStats.forEach((s, i) => {
         const row = sectorSheet.addRow({
           serial: i + 1,
@@ -365,8 +477,10 @@ export default function Dashboard() {
         row.getCell("count").alignment = { horizontal: "center" };
       });
       sectorSheet.views = [{ state: "frozen", ySplit: 1 }];
+      // Embed sector chart beside data (column F onwards)
+      await embedImage(sectorSheet, sectorImg, 1, 6, 480, 280);
 
-      // ── Sheet 3: Regional Stats ─────────────────────────────
+      // ── Sheet 3: Regional Stats + Chart ──────────────────
       const regionSheet = wb.addWorksheet("🗺️ Regional Stats");
       regionSheet.columns = [
         { header: "#", key: "serial", width: 6 },
@@ -374,7 +488,7 @@ export default function Dashboard() {
         { header: "Total Amount (LKR)", key: "totalAmount", width: 22 },
         { header: "Number of Loans", key: "count", width: 18 },
       ];
-      styleHeader(regionSheet, "FF2E7D5E");
+      styleHeader(regionSheet);
       data.regionalStats.forEach((r, i) => {
         const row = regionSheet.addRow({
           serial: i + 1,
@@ -389,8 +503,9 @@ export default function Dashboard() {
         row.getCell("count").alignment = { horizontal: "center" };
       });
       regionSheet.views = [{ state: "frozen", ySplit: 1 }];
+      await embedImage(regionSheet, sectorRegionImg, 1, 6, 480, 280);
 
-      // ── Sheet 4: Monthly Trends ─────────────────────────────
+      // ── Sheet 4: Monthly Trends + Chart ──────────────────
       const trendsSheet = wb.addWorksheet("📈 Monthly Trends");
       trendsSheet.columns = [
         { header: "#", key: "serial", width: 6 },
@@ -400,7 +515,7 @@ export default function Dashboard() {
         { header: "Approved", key: "approved", width: 14 },
         { header: "Total", key: "total", width: 14 },
       ];
-      styleHeader(trendsSheet, "FF2E7D5E");
+      styleHeader(trendsSheet);
       data.monthlyData.forEach((m, i) => {
         const row = trendsSheet.addRow({
           serial: i + 1,
@@ -412,18 +527,15 @@ export default function Dashboard() {
         });
         zebraRow(row, i);
         borderAll(row);
-        ["pending", "underReview", "approved", "total"].forEach((k) => {
-          row.getCell(k).alignment = { horizontal: "center" };
-        });
-        // Color approved column green
         row.getCell("approved").font = {
           color: { argb: "FF2E7D5E" },
           bold: true,
         };
       });
       trendsSheet.views = [{ state: "frozen", ySplit: 1 }];
+      await embedImage(trendsSheet, trendsImg, 1, 8, 480, 280);
 
-      // ── Sheet 5: Recent Applications ───────────────────────
+      // ── Sheet 5: Recent Applications ─────────────────────
       const recentSheet = wb.addWorksheet("📋 Recent Applications");
       recentSheet.columns = [
         { header: "#", key: "serial", width: 6 },
@@ -434,7 +546,7 @@ export default function Dashboard() {
         { header: "Status", key: "status", width: 14 },
         { header: "Applied Date", key: "appliedDate", width: 16 },
       ];
-      styleHeader(recentSheet, "FF2E7D5E");
+      styleHeader(recentSheet);
       data.recentApplications.forEach((l, i) => {
         const row = recentSheet.addRow({
           serial: i + 1,
@@ -449,8 +561,6 @@ export default function Dashboard() {
         borderAll(row);
         row.getCell("amount").numFmt = "#,##0";
         row.getCell("amount").alignment = { horizontal: "right" };
-
-        // Color status cell
         const statusCell = row.getCell("status");
         const statusColors = {
           Approved: "FF2E7D5E",
@@ -469,25 +579,39 @@ export default function Dashboard() {
       });
       recentSheet.views = [{ state: "frozen", ySplit: 1 }];
 
-      // ── Sheet 6: Fund Allocation History ───────────────────
+      // ── Sheet 6: Fund History ─────────────────────────────
       const fundSheet = wb.addWorksheet("💰 Fund History");
       fundSheet.columns = [
-        { header: "Fiscal Year", key: "year", width: 14 },
+        { header: "Month / Year", key: "period", width: 16 },
         { header: "Total Allocation", key: "allocation", width: 22 },
         { header: "Set By", key: "setBy", width: 20 },
-        { header: "Date Set", key: "date", width: 18 },
+        { header: "Date Added", key: "date", width: 18 },
         { header: "Note", key: "note", width: 30 },
-        { header: "Status", key: "status", width: 12 },
       ];
-      styleHeader(fundSheet, "FF2E7D5E");
+      styleHeader(fundSheet);
+      const monthNames = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
       fundHistory.forEach((f, i) => {
         const row = fundSheet.addRow({
-          year: `FY ${f.year}`,
+          period: `${monthNames[f.month - 1]} ${f.year}`,
           allocation: f.totalAllocation,
           setBy: f.setBy?.username || f.setBy?.email || "—",
-          date: new Date(f.createdAt).toLocaleDateString("en-LK"),
+          date: new Date(f.allocationDate || f.createdAt).toLocaleDateString(
+            "en-LK",
+          ),
           note: f.note || "—",
-          status: f.year === new Date().getFullYear() ? "Current" : "Past",
         });
         zebraRow(row, i);
         borderAll(row);
@@ -497,16 +621,69 @@ export default function Dashboard() {
           color: { argb: "FF2E7D5E" },
           bold: true,
         };
-        if (f.year === new Date().getFullYear()) {
-          row.getCell("status").font = {
-            color: { argb: "FF2E7D5E" },
-            bold: true,
-          };
-        }
       });
       fundSheet.views = [{ state: "frozen", ySplit: 1 }];
 
-      // ── Download ────────────────────────────────────────────
+      // ── Sheet 7: Dashboard Charts ─────────────────────────
+      const chartsSheet = wb.addWorksheet("📊 Dashboard Charts");
+      chartsSheet.getColumn(1).width = 80;
+
+      // Title
+      chartsSheet.mergeCells("A1:H1");
+      const titleCell = chartsSheet.getCell("A1");
+      titleCell.value = "IDB Loan Fund — Dashboard Charts";
+      titleCell.font = { bold: true, size: 16, color: { argb: "FF1A2535" } };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+      titleCell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFFFF3CD" },
+      };
+      chartsSheet.getRow(1).height = 36;
+
+      chartsSheet.getCell("A2").value =
+        `Generated: ${new Date().toLocaleDateString("en-LK")}`;
+      chartsSheet.getCell("A2").font = {
+        size: 10,
+        color: { argb: "FF6B7280" },
+      };
+      chartsSheet.getRow(2).height = 20;
+
+      // Chart labels and images
+      const chartEntries = [
+        { label: "Sector-Wise Allocation", img: sectorImg, row: 4, col: 1 },
+        {
+          label: "Sector vs Region Distribution",
+          img: sectorRegionImg,
+          row: 4,
+          col: 10,
+        },
+        {
+          label: "Application Volume & Trends",
+          img: trendsImg,
+          row: 24,
+          col: 1,
+        },
+      ];
+
+      for (const entry of chartEntries) {
+        // Label
+        const labelCell = chartsSheet.getCell(entry.row, entry.col);
+        labelCell.value = entry.label;
+        labelCell.font = { bold: true, size: 12, color: { argb: "FF1A2535" } };
+        chartsSheet.getRow(entry.row).height = 20;
+
+        // Image
+        if (entry.img) {
+          const imgId = wb.addImage({ base64: entry.img, extension: "png" });
+          chartsSheet.addImage(imgId, {
+            tl: { col: entry.col - 1, row: entry.row },
+            ext: { width: 460, height: 260 },
+          });
+        }
+      }
+
+      // ── Download ──────────────────────────────────────────
       const buf = await wb.xlsx.writeBuffer();
       saveAs(
         new Blob([buf]),
@@ -514,7 +691,7 @@ export default function Dashboard() {
       );
     } catch (err) {
       console.error("Export error:", err);
-      alert("Export failed. Please try again.");
+      alert("Export failed: " + err.message);
     }
   };
 
@@ -665,7 +842,11 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <Wallet size={18} className="text-[#e09510]" />
                   <button
-                    onClick={() => setShowFundModal(true)}
+                    onClick={() => {
+                      setFundInput({ amount: "", date: new Date(), note: "" });
+                      setFundError("");
+                      setShowFundModal(true);
+                    }}
                     className="p-1 rounded-full bg-[#e09510] hover:bg-[#c8840e] text-white transition-all"
                     title="Set fund allocation"
                   >
@@ -785,7 +966,7 @@ export default function Dashboard() {
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* ── A. Sector-Wise Donut Chart ──────────────── */}
+          {/* ── A. Sector-Wise Donut/Pie Chart ──────────── */}
           <ChartCard
             title="Sector-Wise Allocation"
             subtitle="Click a sector to cross-filter charts"
@@ -819,23 +1000,6 @@ export default function Dashboard() {
               >
                 {sectorChartType === "donut" ? "Pie View" : "Donut View"}
               </button>
-              <select
-                value={sectorFilter}
-                onChange={(e) => {
-                  setSectorFilter(e.target.value);
-                  setSelectedSector(
-                    e.target.value === "All" ? null : e.target.value,
-                  );
-                }}
-                className="text-xs px-3 py-1 rounded-full border border-gray-200 bg-white outline-none"
-              >
-                <option value="All">All Sectors</option>
-                {data?.sectorStats?.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s._id}
-                  </option>
-                ))}
-              </select>
             </div>
             {loading ? (
               <Skeleton className="h-64" />
@@ -857,6 +1021,7 @@ export default function Dashboard() {
                           selectedSector === d._id ? null : d._id,
                         )
                       }
+                      cursor="pointer"
                     >
                       {filteredSectorData.map((entry, i) => (
                         <Cell
@@ -867,7 +1032,6 @@ export default function Dashboard() {
                               ? 0.3
                               : 1
                           }
-                          cursor="pointer"
                         />
                       ))}
                     </Pie>
@@ -883,148 +1047,224 @@ export default function Dashboard() {
             )}
           </ChartCard>
 
-          {/* ── B. Regional Bar Chart ───────────────────── */}
+          {/* ── B. Sector vs Region Chart ───────────────── */}
+          {/* ── B. Sector vs Region Chart ───────────────── */}
           <ChartCard
-            title="Regional Comparison"
-            subtitle="Approved loan amounts by region"
-            chartRef={regionalRef}
-            filename="regional_comparison"
+            title="Sector vs Region Distribution"
+            subtitle="Which sector dominates in which region"
+            chartRef={sectorRegionRef}
+            filename="sector_region"
           >
             <div className="flex flex-wrap gap-2 mb-3">
               <button
                 onClick={() =>
-                  setBarOrientation(
-                    barOrientation === "vertical" ? "horizontal" : "vertical",
+                  setSectorRegionView(
+                    sectorRegionView === "bar" ? "heatmap" : "bar",
                   )
                 }
                 className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-[#e09510] hover:text-white hover:border-[#e09510] transition-all"
               >
-                {barOrientation === "vertical" ? "Horizontal" : "Vertical"}
-              </button>
-              <button
-                onClick={() => setShowGrid(!showGrid)}
-                className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-gray-100 transition-all"
-              >
-                {showGrid ? "Hide Grid" : "Show Grid"}
+                {sectorRegionView === "bar" ? "Heatmap View" : "Bar View"}
               </button>
             </div>
             {loading ? (
               <Skeleton className="h-64" />
             ) : (
-              <div ref={regionalRef}>
-                <ResponsiveContainer width="100%" height={260}>
-                  {barOrientation === "vertical" ? (
-                    <BarChart
-                      key={`v-${showGrid}`}
-                      data={regionalData}
-                      margin={{ bottom: 20 }}
-                    >
-                      {showGrid && (
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      )}
-                      <XAxis
-                        dataKey="_id"
-                        tick={{ fontSize: 11 }}
-                        angle={-25}
-                        textAnchor="end"
-                      />
-                      <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(v) => fmt(v)} />
-                      <Bar
-                        dataKey="totalAmount"
-                        radius={[4, 4, 0, 0]}
-                        name="Amount"
-                        onClick={(d) =>
-                          setSelectedRegion(
-                            selectedRegion === d._id ? null : d._id,
-                          )
-                        }
-                        cursor="pointer"
-                      >
-                        {regionalData.map((entry, i) => (
-                          <Cell
-                            key={i}
-                            fill={COLORS[i % COLORS.length]}
-                            opacity={
-                              selectedRegion && selectedRegion !== entry._id
-                                ? 0.3
-                                : 1
-                            }
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  ) : (
-                    <BarChart
-                      key={`h-${showGrid}`}
-                      data={regionalData}
-                      layout="vertical"
-                      margin={{ left: 10 }}
-                    >
-                      {showGrid && (
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      )}
-                      <XAxis
-                        type="number"
-                        tickFormatter={fmtShort}
-                        tick={{ fontSize: 11 }}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="_id"
-                        tick={{ fontSize: 11 }}
-                        width={90}
-                      />
-                      <Tooltip formatter={(v) => fmt(v)} />
-                      <Bar
-                        dataKey="totalAmount"
-                        radius={[0, 4, 4, 0]}
-                        name="Amount"
-                        onClick={(d) =>
-                          setSelectedRegion(
-                            selectedRegion === d._id ? null : d._id,
-                          )
-                        }
-                        cursor="pointer"
-                      >
-                        {regionalData.map((entry, i) => (
-                          <Cell
-                            key={i}
-                            fill={COLORS[i % COLORS.length]}
-                            opacity={
-                              selectedRegion && selectedRegion !== entry._id
-                                ? 0.3
-                                : 1
-                            }
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  )}
-                </ResponsiveContainer>
-              </div>
+              (() => {
+                // Reshape crossData into { region, Sector1: amount, Sector2: amount, ... }
+                const regions = [
+                  ...new Set(data?.crossData?.map((d) => d.region) || []),
+                ];
+                const sectors = [
+                  ...new Set(data?.crossData?.map((d) => d.sector) || []),
+                ];
+                const barData = regions.map((region) => {
+                  const entry = { region };
+                  let total = 0;
+                  sectors.forEach((sector) => {
+                    const found = data?.crossData?.find(
+                      (d) => d.region === region && d.sector === sector,
+                    );
+                    entry[sector] = found?.totalAmount || 0;
+                    total += entry[sector];
+                  });
+                  entry.total = total;
+                  return entry;
+                });
+
+                return (
+                  <div ref={sectorRegionRef}>
+                    {sectorRegionView === "bar" ? (
+                      barData.length === 0 ? (
+                        <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
+                          No approved loan data available
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height={260}>
+                          <ComposedChart data={barData} margin={{ bottom: 20 }}>
+                            <CartesianGrid
+                              strokeDasharray="3 3"
+                              stroke="#f0f0f0"
+                            />
+                            <XAxis
+                              dataKey="region"
+                              tick={{ fontSize: 10 }}
+                              angle={-25}
+                              textAnchor="end"
+                            />
+                            <YAxis
+                              tickFormatter={fmtShort}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <Tooltip
+                              formatter={(v, name) => [fmt(v), name]}
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null;
+                                return (
+                                  <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs max-w-48">
+                                    <p className="font-bold text-gray-700 mb-2">
+                                      {label}
+                                    </p>
+                                    {payload
+                                      .filter((p) => p.value > 0)
+                                      .map((p, i) => (
+                                        <p
+                                          key={i}
+                                          style={{ color: p.fill }}
+                                          className="py-0.5"
+                                        >
+                                          {p.name}: {fmt(p.value)}
+                                        </p>
+                                      ))}
+                                  </div>
+                                );
+                              }}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            {sectors.map((sector, i) => (
+                              <Bar
+                                key={sector}
+                                dataKey={sector}
+                                fill={COLORS[i % COLORS.length]}
+                                stackId="a"
+                                radius={
+                                  i === sectors.length - 1
+                                    ? [4, 4, 0, 0]
+                                    : [0, 0, 0, 0]
+                                }
+                              />
+                            ))}
+                            <Line
+                              type="monotone"
+                              dataKey="total"
+                              stroke="#1a2535"
+                              strokeWidth={2}
+                              dot={{ r: 4, fill: "#1a2535" }}
+                              name="Total"
+                            />
+                          </ComposedChart>
+                        </ResponsiveContainer>
+                      )
+                    ) : (
+                      // Heatmap view
+                      <div className="overflow-auto max-h-64">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr>
+                              <th className="p-2 text-left text-gray-500 font-bold border border-gray-100 bg-gray-50 sticky left-0">
+                                Sector \ Region
+                              </th>
+                              {regions.map((r) => (
+                                <th
+                                  key={r}
+                                  className="p-2 text-center text-gray-500 font-bold border border-gray-100 bg-gray-50 whitespace-nowrap"
+                                >
+                                  {r}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sectors.map((sector) => {
+                              const rowVals = regions.map((r) => {
+                                const found = data?.crossData?.find(
+                                  (d) => d.sector === sector && d.region === r,
+                                );
+                                return found?.totalAmount || 0;
+                              });
+                              const maxVal = Math.max(...rowVals, 1);
+                              return (
+                                <tr key={sector}>
+                                  <td className="p-2 font-medium text-gray-700 border border-gray-100 bg-gray-50 sticky left-0 whitespace-nowrap">
+                                    {sector}
+                                  </td>
+                                  {regions.map((r, ri) => {
+                                    const val = rowVals[ri];
+                                    const intensity = val / maxVal;
+                                    const bg =
+                                      intensity > 0.7
+                                        ? "#065f46"
+                                        : intensity > 0.4
+                                          ? "#059669"
+                                          : intensity > 0.1
+                                            ? "#6ee7b7"
+                                            : "#f0fdf4";
+                                    const color =
+                                      intensity > 0.4 ? "#ffffff" : "#374151";
+                                    return (
+                                      <td
+                                        key={r}
+                                        className="p-2 text-center border border-gray-100 font-medium transition-colors"
+                                        style={{ backgroundColor: bg, color }}
+                                      >
+                                        {val > 0 ? fmtShort(val) : "—"}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </ChartCard>
 
-          {/* ── C. Monthly Trends ───────────────────────── */}
+          {/* ── C. Merged: Volume + Amounts Trends ──────── */}
           <ChartCard
-            title="Application Volume & Trends"
-            subtitle="Monthly application breakdown"
+            title="Application Volume & Approved Amounts"
+            subtitle="Monthly trends - bars show counts, area shows approved LKR"
             chartRef={trendsRef}
             filename="monthly_trends"
           >
             <div className="flex flex-wrap gap-2 mb-3">
               <button
-                onClick={() => setShowStacked(!showStacked)}
+                onClick={() => setShowBars(!showBars)}
                 className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-[#e09510] hover:text-white hover:border-[#e09510] transition-all"
               >
-                {showStacked ? "Unstacked" : "Stacked"}
+                {showBars ? "Hide Bars" : "Show Bars"}
               </button>
               <button
-                onClick={() => setShowTrend(!showTrend)}
+                onClick={() => setShowArea(!showArea)}
                 className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-gray-100 transition-all"
               >
-                {showTrend ? "Hide Trend" : "Show Trend"}
+                {showArea ? "Hide Area" : "Show Area"}
+              </button>
+              <button
+                onClick={() => setShowLine(!showLine)}
+                className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-gray-100 transition-all"
+              >
+                {showLine ? "Hide Trend" : "Show Trend"}
+              </button>
+              <button
+                onClick={() => setShowStacked(!showStacked)}
+                className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-gray-100 transition-all"
+              >
+                {showStacked ? "Unstacked" : "Stacked"}
               </button>
             </div>
             {loading ? (
@@ -1033,36 +1273,67 @@ export default function Dashboard() {
               <div ref={trendsRef}>
                 <ResponsiveContainer width="100%" height={260}>
                   <ComposedChart data={monthlyData}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#e5e7eb"
-                      strokeOpacity={showGrid ? 1 : 0}
-                    />
+                    {showGrid && (
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    )}
                     <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
+                    <YAxis
+                      yAxisId="count"
+                      orientation="left"
+                      tick={{ fontSize: 10 }}
+                    />
+                    <YAxis
+                      yAxisId="amount"
+                      orientation="right"
+                      tickFormatter={fmtShort}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <Tooltip
+                      formatter={(v, name) =>
+                        name === "Approved (LKR)" ? fmt(v) : `${v} applications`
+                      }
+                    />
                     <Legend />
-                    <Bar
-                      dataKey="Pending"
-                      stackId={showStacked ? "a" : undefined}
-                      fill="#f59e0b"
-                      name="Pending"
-                    />
-                    <Bar
-                      dataKey="Under Review"
-                      stackId={showStacked ? "a" : undefined}
-                      fill="#3b82f6"
-                      name="Under Review"
-                    />
-                    <Bar
-                      dataKey="Approved"
-                      stackId={showStacked ? "a" : undefined}
-                      fill="#10b981"
-                      name="Approved"
-                      radius={showStacked ? [4, 4, 0, 0] : [4, 4, 0, 0]}
-                    />
-                    {showTrend && (
+                    {showBars && (
+                      <>
+                        <Bar
+                          yAxisId="count"
+                          dataKey="Pending"
+                          stackId={showStacked ? "a" : undefined}
+                          fill="#f59e0b"
+                          name="Pending"
+                        />
+                        <Bar
+                          yAxisId="count"
+                          dataKey="Under Review"
+                          stackId={showStacked ? "a" : undefined}
+                          fill="#3b82f6"
+                          name="Under Review"
+                        />
+                        <Bar
+                          yAxisId="count"
+                          dataKey="Approved"
+                          stackId={showStacked ? "a" : undefined}
+                          fill="#10b981"
+                          name="Approved"
+                          radius={showStacked ? [4, 4, 0, 0] : [4, 4, 0, 0]}
+                        />
+                      </>
+                    )}
+                    {showArea && (
+                      <Area
+                        yAxisId="amount"
+                        type="monotone"
+                        dataKey="approvedAmount"
+                        stroke="#e09510"
+                        fill="#fef3c7"
+                        strokeWidth={2}
+                        name="Approved (LKR)"
+                      />
+                    )}
+                    {showLine && (
                       <Line
+                        yAxisId="count"
                         type="monotone"
                         dataKey="total"
                         stroke="#1a2535"
@@ -1077,65 +1348,7 @@ export default function Dashboard() {
             )}
           </ChartCard>
 
-          {/* ── D. Area Chart (Monthly Amounts) ─────────── */}
-          <ChartCard
-            title="Monthly Approved Amounts"
-            subtitle="Approved amounts (area) vs total applications (line)"
-            chartRef={trendsRef}
-            filename="monthly_amounts"
-          >
-            {loading ? (
-              <Skeleton className="h-64" />
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <ComposedChart data={data?.monthlyData}>
-                  {showGrid && (
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  )}
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis
-                    yAxisId="amount"
-                    orientation="left"
-                    tickFormatter={fmtShort}
-                    tick={{ fontSize: 10 }}
-                  />
-                  <YAxis
-                    yAxisId="count"
-                    orientation="right"
-                    tick={{ fontSize: 10 }}
-                  />
-                  <Tooltip
-                    formatter={(v, name) =>
-                      name === "Approved Amount (LKR)"
-                        ? fmt(v)
-                        : `${v} applications`
-                    }
-                  />
-                  <Legend />
-                  <Area
-                    yAxisId="amount"
-                    type="monotone"
-                    dataKey="approvedAmount"
-                    stroke="#10b981"
-                    fill="#d1fae5"
-                    strokeWidth={2}
-                    name="Approved Amount (LKR)"
-                  />
-                  <Line
-                    yAxisId="count"
-                    type="monotone"
-                    dataKey="total"
-                    stroke="#e09510"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    name="Total Applications"
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            )}
-          </ChartCard>
-
-          {/* ── E. Financial Sustainability Gauge ──────── */}
+          {/* ── D. Financial Sustainability Gauge ──────── */}
           <ChartCard
             title="Financial Sustainability"
             subtitle="Real-time fund depletion monitor"
@@ -1167,7 +1380,6 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <>
-                    {/* Custom SVG Gauge */}
                     <svg viewBox="0 0 200 120" className="w-48">
                       <path
                         d="M 20 100 A 80 80 0 0 1 180 100"
@@ -1207,10 +1419,10 @@ export default function Dashboard() {
                     </svg>
                     <p className="text-xs text-gray-500 mt-2 text-center">
                       {utilizationPct >= 90
-                        ? "🔴 Critical — Fund nearly exhausted!"
+                        ? "🔴 Critical - Fund nearly exhausted!"
                         : utilizationPct >= 70
                           ? "🟠 Warning — Monitor closely"
-                          : "🟢 Safe - Fund utilization normal"}
+                          : "🟢 Safe — Fund utilization normal"}
                     </p>
                     <div className="flex gap-6 mt-3 text-xs text-gray-500">
                       <span>
@@ -1322,6 +1534,7 @@ export default function Dashboard() {
           SECTION 4 — FUND ALLOCATION HISTORY
       ══════════════════════════════════════════════════ */}
       <div>
+        {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Wallet size={18} className="text-[#e09510]" />
@@ -1330,13 +1543,75 @@ export default function Dashboard() {
             </h2>
           </div>
           <button
-            onClick={() => setShowFundModal(true)}
+            onClick={() => {
+              setFundInput({ amount: "", date: new Date(), note: "" });
+              setFundError("");
+              setShowFundModal(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#e09510] hover:bg-[#c8840e] text-white text-sm font-semibold transition-all shadow-sm"
           >
-            <Plus size={15} /> Set Allocation
+            <Plus size={15} /> New Allocation
           </button>
         </div>
 
+        {/* Fund Allocation vs Distribution Chart */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-4">
+          <h3 className="text-sm font-bold text-gray-700 mb-1">
+            Monthly Fund Allocation vs Distribution
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">
+            How much was allocated vs how much was distributed each month
+          </p>
+          {loading ? (
+            <Skeleton className="h-56" />
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={fundChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={fmtShort} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v) => fmt(v)} />
+                <Legend />
+                <Bar
+                  dataKey="allocated"
+                  fill="#e09510"
+                  radius={[4, 4, 0, 0]}
+                  name="Allocated (LKR)"
+                />
+                <Bar
+                  dataKey="distributed"
+                  fill="#10b981"
+                  radius={[4, 4, 0, 0]}
+                  name="Distributed (LKR)"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 mb-3">
+          <select
+            value={fundSortBy}
+            onChange={(e) => setFundSortBy(e.target.value)}
+            className="text-xs px-3 py-2 rounded-lg border border-gray-200 bg-white outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="createdAt">Sort by Date</option>
+            <option value="totalAllocation">Sort by Amount</option>
+            <option value="year">Sort by Year</option>
+            <option value="month">Sort by Month</option>
+          </select>
+          <select
+            value={fundOrder}
+            onChange={(e) => setFundOrder(e.target.value)}
+            className="text-xs px-3 py-2 rounded-lg border border-gray-200 bg-white outline-none focus:ring-2 focus:ring-emerald-500"
+          >
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+        </div>
+
+        {/* History Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           {loading ? (
             <div className="p-6 space-y-3">
@@ -1349,7 +1624,7 @@ export default function Dashboard() {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
                   <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">
-                    Fiscal Year
+                    Month / Year
                   </th>
                   <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">
                     Total Allocation
@@ -1358,13 +1633,13 @@ export default function Dashboard() {
                     Set By
                   </th>
                   <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">
-                    Date Set
+                    Date Added
                   </th>
                   <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">
                     Note
                   </th>
                   <th className="text-left px-6 py-3 text-xs font-bold text-gray-500 uppercase">
-                    Status
+                    Actions
                   </th>
                 </tr>
               </thead>
@@ -1375,7 +1650,7 @@ export default function Dashboard() {
                       colSpan={6}
                       className="px-6 py-12 text-center text-gray-400 text-sm"
                     >
-                      No fund allocations set yet. Click "Set Allocation" to add
+                      No fund allocations yet. Click "New Allocation" to add
                       one.
                     </td>
                   </tr>
@@ -1386,7 +1661,23 @@ export default function Dashboard() {
                       className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
                     >
                       <td className="px-6 py-4 font-bold text-gray-800">
-                        FY {record.year}
+                        {
+                          [
+                            "Jan",
+                            "Feb",
+                            "Mar",
+                            "Apr",
+                            "May",
+                            "Jun",
+                            "Jul",
+                            "Aug",
+                            "Sep",
+                            "Oct",
+                            "Nov",
+                            "Dec",
+                          ][record.month - 1]
+                        }{" "}
+                        {record.year}
                       </td>
                       <td className="px-6 py-4 font-semibold text-emerald-600">
                         {fmt(record.totalAllocation)}
@@ -1395,14 +1686,13 @@ export default function Dashboard() {
                         {record.setBy?.username || record.setBy?.email || "—"}
                       </td>
                       <td className="px-6 py-4 text-gray-500">
-                        {new Date(record.createdAt).toLocaleDateString(
-                          "en-LK",
-                          {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          },
-                        )}
+                        {new Date(
+                          record.allocationDate || record.createdAt,
+                        ).toLocaleDateString("en-LK", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
                       </td>
                       <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
                         {record.note || (
@@ -1410,17 +1700,29 @@ export default function Dashboard() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            record.year === new Date().getFullYear()
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          {record.year === new Date().getFullYear()
-                            ? "Current"
-                            : "Past"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {/* Edit */}
+                          <button
+                            onClick={() => {
+                              setEditRecord({ ...record });
+                              setFundError("");
+                              setShowEditModal(true);
+                            }}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-all font-medium"
+                          >
+                            Edit
+                          </button>
+                          {/* Delete */}
+                          <button
+                            onClick={() => {
+                              setDeleteTarget(record);
+                              setShowDeleteConfirm(true);
+                            }}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-all font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1457,15 +1759,22 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                  Fiscal Year
+                  Allocation Date
                 </label>
-                <input
-                  type="number"
-                  value={fundInput.year}
-                  onChange={(e) =>
-                    setFundInput({ ...fundInput, year: e.target.value })
-                  }
-                  className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                <DatePicker
+                  selected={fundInput.date}
+                  onChange={(date) => {
+                    console.log("Date selected:", date);
+                    setFundInput((prev) => ({ ...prev, date }));
+                  }}
+                  dateFormat="dd MMMM yyyy"
+                  showMonthDropdown
+                  showYearDropdown
+                  dropdownMode="select"
+                  isClearable
+                  placeholderText="Click to select date"
+                  className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm cursor-pointer"
+                  wrapperClassName="w-full"
                 />
               </div>
               <div>
@@ -1474,12 +1783,19 @@ export default function Dashboard() {
                 </label>
                 <input
                   type="number"
-                  placeholder="e.g. 50000000"
+                  placeholder="e.g. 5000000"
                   value={fundInput.amount}
                   onChange={(e) =>
-                    setFundInput({ ...fundInput, amount: e.target.value })
+                    setFundInput((prev) => ({
+                      ...prev,
+                      amount: e.target.value,
+                    }))
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveFund();
+                  }}
                   className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                  autoFocus
                 />
                 {fundInput.amount > 0 && (
                   <p className="text-xs text-emerald-600 mt-1">
@@ -1518,6 +1834,194 @@ export default function Dashboard() {
                 className="flex-1 px-4 py-2.5 rounded-lg bg-[#e09510] hover:bg-[#c8840e] text-white text-sm font-semibold transition-all disabled:opacity-60"
               >
                 {fundLoading ? "Saving..." : "Save Allocation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ══ EDIT FUND MODAL ══════════════════════════════ */}
+      {showEditModal && editRecord && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">
+                  Edit Allocation
+                </h3>
+                <p className="text-xs text-gray-400">
+                  Update this fund allocation record
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditRecord(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                    Year
+                  </label>
+                  <input
+                    type="number"
+                    value={editRecord.year}
+                    onChange={(e) =>
+                      setEditRecord({ ...editRecord, year: e.target.value })
+                    }
+                    className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                    Month
+                  </label>
+                  <select
+                    value={editRecord.month}
+                    onChange={(e) =>
+                      setEditRecord({ ...editRecord, month: e.target.value })
+                    }
+                    className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
+                  >
+                    {[
+                      "January",
+                      "February",
+                      "March",
+                      "April",
+                      "May",
+                      "June",
+                      "July",
+                      "August",
+                      "September",
+                      "October",
+                      "November",
+                      "December",
+                    ].map((m, i) => (
+                      <option key={i} value={i + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                  Total Allocation (LKR)
+                </label>
+                <input
+                  type="number"
+                  value={editRecord.totalAllocation}
+                  onChange={(e) =>
+                    setEditRecord({
+                      ...editRecord,
+                      totalAllocation: e.target.value,
+                    })
+                  }
+                  className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                />
+                {editRecord.totalAllocation > 0 && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    {fmt(Number(editRecord.totalAllocation))}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                  Note (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={editRecord.note || ""}
+                  onChange={(e) =>
+                    setEditRecord({ ...editRecord, note: e.target.value })
+                  }
+                  className="w-full border border-gray-200 rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                />
+              </div>
+              {fundError && <p className="text-sm text-red-500">{fundError}</p>}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditRecord(null);
+                }}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditFund}
+                disabled={fundLoading}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-[#e09510] hover:bg-[#c8840e] text-white text-sm font-semibold transition-all disabled:opacity-60"
+              >
+                {fundLoading ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ DELETE CONFIRM MODAL ═════════════════════════ */}
+      {showDeleteConfirm && deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+                <X size={24} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-800">
+                Delete Allocation?
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                This will permanently delete the{" "}
+                <span className="font-semibold text-gray-700">
+                  {
+                    [
+                      "Jan",
+                      "Feb",
+                      "Mar",
+                      "Apr",
+                      "May",
+                      "Jun",
+                      "Jul",
+                      "Aug",
+                      "Sep",
+                      "Oct",
+                      "Nov",
+                      "Dec",
+                    ][deleteTarget.month - 1]
+                  }{" "}
+                  {deleteTarget.year}
+                </span>{" "}
+                allocation of{" "}
+                <span className="font-semibold text-red-600">
+                  {fmt(deleteTarget.totalAllocation)}
+                </span>
+                .
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteTarget(null);
+                }}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteFund}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-all disabled:opacity-60"
+              >
+                {deleteLoading ? "Deleting..." : "Yes, Delete"}
               </button>
             </div>
           </div>
