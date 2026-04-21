@@ -1,0 +1,12 @@
+node_modules/
+jspm_packages/
+
+# Node modules
+node_modules/
+server/node_modules/
+Client/node_modules/
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example

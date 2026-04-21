@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # 1. Database
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - idb-net
+
+  # 2. Backend API
+  server:
+    build: ./server
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/idb_loans
+      - NODE_ENV=development
+    depends_on:
+      - mongo
+    networks:
+      - idb-net
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+
+  # 3. Frontend Client
+  client:
+    build: ./client
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+    networks:
+      - idb-net
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+
+volumes:
+  mongo-data:
+
+networks:
+  idb-net:
