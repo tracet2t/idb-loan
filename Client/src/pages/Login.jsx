@@ -22,8 +22,26 @@ export default function Login() {
     setError("");
 
     try {
-      await api.post("/auth/login", form);
-      navigate("/dashboard");
+      const res = await api.post("/auth/login", form);
+      
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("role", res.data.role);
+      localStorage.setItem("isFirstLogin", res.data.isFirstLogin);
+
+      const { role, isFirstLogin } = res.data;
+
+      if (role === "data-entry") {
+        if (isFirstLogin) {
+          navigate("/my-profile");
+        } else {
+          navigate("/applications");
+        }
+      } else if (role === "super-admin") {
+        navigate("/dashboard");
+      } else {
+        navigate("/dashboard");
+      }
+
     } catch (err) {
       if (err.response) {
         setError(err.response.data.message || "Invalid email or password.");
@@ -37,160 +55,64 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-
-      {/* Dark Red Top Bar */}
       <div className="h-2 bg-[#8B0000] w-full" />
-
-      {/* Centered Card */}
       <div className="flex-1 flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-hidden">
-
-          {/* ── Header ── */}
           <div className="px-10 pt-10 pb-6 text-center">
-
-            {/* Logo Row */}
             <div className="flex items-center justify-center gap-5 mb-5">
-
-              {/* Sri Lanka Coat of Arms - LEFT */}
-              <img
-                src={emblem}
-                alt="Sri Lanka Emblem"
-                className="w-14 h-14 object-contain"
-              />
-
-              {/* Center Text */}
+              <img src={emblem} alt="Sri Lanka Emblem" className="w-14 h-14 object-contain" />
               <div className="text-center">
-                <p className="text-[#1B3A7A] text-sm font-bold tracking-wide uppercase leading-tight">
-                  Industrial
-                </p>
-                <p className="text-[#1B3A7A] text-sm font-bold tracking-wide uppercase leading-tight">
-                  Development Board
-                </p>
+                <p className="text-[#1B3A7A] text-sm font-bold tracking-wide uppercase leading-tight">Industrial</p>
+                <p className="text-[#1B3A7A] text-sm font-bold tracking-wide uppercase leading-tight">Development Board</p>
                 <p className="text-gray-500 text-[10px] mt-1 leading-snug">
                   Ministry of Industry and Entrepreneurship<br />Development
                 </p>
               </div>
-
-              {/* IDB Logo - RIGHT */}
-              <img
-                src={idb}
-                alt="IDB Logo"
-                className="w-14 h-14 object-contain rounded-lg"
-              />
-
+              <img src={idb} alt="IDB Logo" className="w-14 h-14 object-contain rounded-lg" />
             </div>
-
-            {/* Divider */}
             <div className="border-t border-gray-100 mb-6" />
-
-            {/* Sign In Heading */}
-            <h1 className="text-[#1B3A7A] text-2xl font-bold tracking-wide">
-              Sign In
-            </h1>
+            <h1 className="text-[#1B3A7A] text-2xl font-bold tracking-wide">Sign In</h1>
           </div>
 
-          {/* ── Form ── */}
           <div className="px-10 pb-10">
-
-            {/* Error Banner */}
             {error && (
               <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 px-4 py-2.5 rounded-lg text-sm">
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="shrink-0"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
                 {error}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-
-              {/* Email */}
               <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                required
-                autoComplete="email"
-                placeholder="Username"
+                type="email" name="email" value={form.email} onChange={handleChange}
+                required autoComplete="email" placeholder="Username"
                 className="w-full px-4 py-3 bg-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1B3A7A] focus:bg-white transition"
               />
-
-              {/* Password */}
               <div className="relative">
                 <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={form.password}
-                  onChange={handleChange}
-                  required
-                  autoComplete="current-password"
-                  placeholder="Password"
+                  type={showPassword ? "text" : "password"} name="password"
+                  value={form.password} onChange={handleChange}
+                  required autoComplete="current-password" placeholder="Password"
                   className="w-full px-4 py-3 pr-16 bg-gray-200 rounded-lg text-sm text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1B3A7A] focus:bg-white transition"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-semibold hover:text-gray-700 transition"
-                >
+                <button type="button" onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-semibold hover:text-gray-700 transition">
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
-
-              {/* Forgot Password */}
               <div className="flex justify-end -mt-1">
-                <button
-                  type="button"
-                  className="text-xs text-gray-500 hover:text-[#1B3A7A] transition"
-                >
+                <button type="button" className="text-xs text-gray-500 hover:text-[#1B3A7A] transition">
                   Forgot password?
                 </button>
               </div>
-
-              {/* Login Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-[#F5A623] hover:bg-[#e09510] active:bg-[#c8840e] text-white font-bold text-base rounded-lg transition-all duration-200 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      className="animate-spin"
-                    >
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                    Signing in...
-                  </>
-                ) : (
-                  "Login"
-                )}
+              <button type="submit" disabled={loading}
+                className="w-full py-3 bg-[#F5A623] hover:bg-[#e09510] active:bg-[#c8840e] text-white font-bold text-base rounded-lg transition-all duration-200 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {loading ? "Signing in..." : "Login"}
               </button>
             </form>
-
-            {/* Footer */}
-            <p className="text-center text-[10px] text-gray-400 mt-6 leading-relaxed">
-              For authorized IDB staff only · All activity is monitored<br />
-              © {new Date().getFullYear()} Industrial Development Board, Sri Lanka
-            </p>
           </div>
-
         </div>
       </div>
     </div>
