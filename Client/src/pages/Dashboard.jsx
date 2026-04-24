@@ -173,6 +173,7 @@ export default function Dashboard() {
   const [sectorChartType, setSectorChartType] = useState("donut"); // 'donut' or 'pie'
   const [showLegend, setShowLegend] = useState(true);
   const [sectorFilter, setSectorFilter] = useState("All");
+  const [regionFilter, setRegionFilter] = useState("All");
   const [barOrientation, setBarOrientation] = useState("vertical");
   const [showGrid, setShowGrid] = useState(true);
   const [showStacked, setShowStacked] = useState(true);
@@ -195,7 +196,9 @@ export default function Dashboard() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Sector vs Region view
-  const [sectorRegionView, setSectorRegionView] = useState("bar"); // 'bar' or 'heatmap'
+  const [sectorRegionView, setSectorRegionView] = useState("bar");
+  const [sectorRegionOrientation, setSectorRegionOrientation] =
+    useState("vertical");
   const sectorRegionRef = useRef(null);
 
   // Merged chart toggles
@@ -957,6 +960,8 @@ export default function Dashboard() {
               onClick={() => {
                 setSelectedSector(null);
                 setSelectedRegion(null);
+                setSectorFilter("All");
+                setRegionFilter("All");
               }}
               className="ml-2 text-[#e09510] underline"
             >
@@ -1000,6 +1005,40 @@ export default function Dashboard() {
               >
                 {sectorChartType === "donut" ? "Pie View" : "Donut View"}
               </button>
+              <select
+                value={sectorFilter}
+                onChange={(e) => {
+                  setSectorFilter(e.target.value);
+                  setSelectedSector(
+                    e.target.value === "All" ? null : e.target.value,
+                  );
+                }}
+                className="text-xs px-3 py-1 rounded-full border border-gray-200 bg-white outline-none cursor-pointer"
+              >
+                <option value="All">All Sectors</option>
+                {data?.sectorStats?.map((s) => (
+                  <option key={s._id} value={s._id}>
+                    {s._id}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={regionFilter}
+                onChange={(e) => {
+                  setRegionFilter(e.target.value);
+                  setSelectedRegion(
+                    e.target.value === "All" ? null : e.target.value,
+                  );
+                }}
+                className="text-xs px-3 py-1 rounded-full border border-gray-200 bg-white outline-none cursor-pointer"
+              >
+                <option value="All">All Regions</option>
+                {data?.regionalStats?.map((r) => (
+                  <option key={r._id} value={r._id}>
+                    {r._id}
+                  </option>
+                ))}
+              </select>
             </div>
             {loading ? (
               <Skeleton className="h-64" />
@@ -1066,6 +1105,22 @@ export default function Dashboard() {
               >
                 {sectorRegionView === "bar" ? "Heatmap View" : "Bar View"}
               </button>
+              {sectorRegionView === "bar" && (
+                <button
+                  onClick={() =>
+                    setSectorRegionOrientation(
+                      sectorRegionOrientation === "vertical"
+                        ? "horizontal"
+                        : "vertical",
+                    )
+                  }
+                  className="text-xs px-3 py-1 rounded-full border border-gray-200 hover:bg-gray-100 transition-all"
+                >
+                  {sectorRegionOrientation === "vertical"
+                    ? "Horizontal"
+                    : "Vertical"}
+                </button>
+              )}
             </div>
             {loading ? (
               <Skeleton className="h-64" />
@@ -1101,21 +1156,51 @@ export default function Dashboard() {
                         </div>
                       ) : (
                         <ResponsiveContainer width="100%" height={260}>
-                          <ComposedChart data={barData} margin={{ bottom: 20 }}>
+                          <ComposedChart
+                            data={barData}
+                            layout={
+                              sectorRegionOrientation === "horizontal"
+                                ? "vertical"
+                                : "horizontal"
+                            }
+                            margin={
+                              sectorRegionOrientation === "vertical"
+                                ? { bottom: 20 }
+                                : { left: 10 }
+                            }
+                          >
                             <CartesianGrid
                               strokeDasharray="3 3"
                               stroke="#f0f0f0"
                             />
-                            <XAxis
-                              dataKey="region"
-                              tick={{ fontSize: 10 }}
-                              angle={-25}
-                              textAnchor="end"
-                            />
-                            <YAxis
-                              tickFormatter={fmtShort}
-                              tick={{ fontSize: 11 }}
-                            />
+                            {sectorRegionOrientation === "vertical" ? (
+                              <>
+                                <XAxis
+                                  dataKey="region"
+                                  tick={{ fontSize: 10 }}
+                                  angle={-25}
+                                  textAnchor="end"
+                                />
+                                <YAxis
+                                  tickFormatter={fmtShort}
+                                  tick={{ fontSize: 11 }}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <XAxis
+                                  type="number"
+                                  tickFormatter={fmtShort}
+                                  tick={{ fontSize: 11 }}
+                                />
+                                <YAxis
+                                  type="category"
+                                  dataKey="region"
+                                  tick={{ fontSize: 10 }}
+                                  width={70}
+                                />
+                              </>
+                            )}
                             <Tooltip
                               formatter={(v, name) => [fmt(v), name]}
                               content={({ active, payload, label }) => {
