@@ -25,11 +25,20 @@ function RoleBadge({ role }) {
 }
 
 // ─── Setup badge ───────────────────────────────────────────────────────────
-function SetupBadge({ isFirstLogin }) {
-  if (!isFirstLogin) return null
+// function SetupBadge({ isFirstLogin }) {
+//   if (!isFirstLogin) return null
+//   return (
+//     <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-orange-300 text-orange-500">
+//       Awaiting Setup
+//     </span>
+//   )
+// }
+
+function SetupBadge({ status }) { // Change prop to status
+  if (status !== 'Pending') return null
   return (
-    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-orange-300 text-orange-500">
-      Awaiting Setup
+    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-orange-300 text-orange-500 bg-orange-50">
+      Awaiting Activation
     </span>
   )
 }
@@ -153,7 +162,7 @@ export default function UserManagement() {
                       {user.fullName || user.username}
                     </p>
                     <RoleBadge role={user.role} />
-                    <SetupBadge isFirstLogin={user.isFirstLogin} />
+                    <SetupBadge status={user.status} />
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5 truncate">
                     @{user.username}
@@ -165,14 +174,16 @@ export default function UserManagement() {
                 {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0">
                   {/* Reset */}
-                  <button
-                    onClick={() => setResetUser(user)}
-                    title="Reset Password"
-                    className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#2e7d5e] border border-slate-200 hover:border-[#2e7d5e] px-3 py-1.5 rounded-lg transition-all"
-                  >
-                    <Key size={13} />
-                    Reset
-                  </button>
+                  {user.status === "Active" && (
+                    <button
+                      onClick={() => setResetUser(user)}
+                      title="Reset Password"
+                      className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#2e7d5e] border border-slate-200 hover:border-[#2e7d5e] px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      <Key size={13} />
+                      Reset
+                    </button>
+                  )}
 
                   {/* Edit */}
                   <button

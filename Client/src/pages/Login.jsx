@@ -26,17 +26,18 @@ export default function Login() {
       
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("role", res.data.role);
-      localStorage.setItem("isFirstLogin", res.data.isFirstLogin);
+      localStorage.setItem('status', res.data.status);
 
-      const { role, isFirstLogin } = res.data;
+      // localStorage.setItem("isFirstLogin", res.data.isFirstLogin);
 
-      if (role === "data-entry") {
-        if (isFirstLogin) {
-          navigate("/my-profile");
-        } else {
-          navigate("/applications");
-        }
-      } else if (role === "super-admin") {
+      const { role, status } = res.data;
+
+      if (status !== "Active") {
+        setError("Your account is not fully activated.");
+        return;
+      }
+
+      if (role === "super-admin") {
         navigate("/dashboard");
       } else {
         navigate("/dashboard");

@@ -1,5 +1,8 @@
 import User from "../models/userModel.js";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
+import sendEmail from "../utils/sendEmail.js";
 
 // GET ALL USERS
 export const getAllUsers = async (req, res) => {
@@ -14,72 +17,81 @@ export const getAllUsers = async (req, res) => {
 // CREATE USER
 export const createUser = async (req, res) => {
   try {
-    const { username, email, password, role, fullName, designation, phone, address, qualification } = req.body;
+    const { email, username, role, fullName, designation, phone } = req.body;
+    // 1. Generate a random temporary token
+    const inviteToken = crypto.randomBytes(32).toString("hex");
 
-    // 1. Basic Validation
-    if (!username || !email || !password) {
-      return res.status(400).json({ message: "Username, Email, and Password are required" });
-    }
+    // 2. Hash it (for DB storage)
+    const hashedToken = crypto.createHash("sha256").update(inviteToken).digest("hex");
 
-    // 2. Check if user exists
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
-    if (existingUser) return res.status(400).json({ message: "User already exists" });
-
-    // 3. Hash Password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 4. Create User (Mapping qualification to studies if needed by your schema)
+    // 3. Create User in 'Pending' state
     const newUser = await User.create({
-      username,
       email,
-      password: hashedPassword,
-      role: role || "data-entry",
-      isFirstLogin: true,
-      profile: {
-        fullName,
-        designation,
-        phone,
-        address,
-        studies: qualification // Mapping frontend 'qualification' to backend 'studies'
-      }
+        role,
+        username,
+        status: "Pending",
+        inviteToken: hashedToken,
+        inviteTokenExpire: Date.now() + 24 * 60 * 60 * 1000,
+        profile: {
+          fullName: fullName || "",
+          designation: designation || "",
+          phone: phone || ""
+        }
     });
 
-    res.status(201).json(newUser);
+    // 4. Construct the Magic Link
+    const inviteUrl = `${process.env.FRONTEND_URL}/setup-password/${inviteToken}`;
+    const message = `Welcome to the IDB Loan Management System.\n\nPlease activate your account and set your password by clicking the link below:\n\n${inviteUrl}\n\nThis link is valid for 24 hours.`;
+
+    // 5. Send the Email using the utility
+    try {
+      await sendEmail({
+        email: newUser.email,
+        subject: "Account Activation - IDB",
+        inviteUrl: inviteUrl,
+        message: message,
+      });
+      
+      // If email succeeds, send success response
+      res.status(201).json({ message: "Invitation sent successfully to " + email });
+      
+    } catch (err) {
+      // If email fails, delete the "Pending" user so the admin can try again
+      console.error("DETAILED EMAIL ERROR:", err);
+      await User.findByIdAndDelete(newUser._id);
+      return res.status(500).json({ message: "Email could not be sent. User not created.", error: err.message
+       });
+      
+    }
+
   } catch (error) {
-    res.status(400).json({ message: "User creation failed", error: error.message });
+    console.error("INVITATION ERROR:", error);
+    res.status(500).json({ message: "Error creating invitation" });
   }
 };
 
 // UPDATE USER
 export const updateUser = async (req, res) => {
-  const { id } = req.params;
-  const { fullName, designation, phone, address, qualification, role, email } = req.body;
-
   try {
-    // 1. Find the user first to ensure they exist
-    const user = await User.findById(id);
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // 2. Initialize profile if it doesn't exist
-    if (!user.profile) user.profile = {};
+    const { email, role, fullName, designation, phone } = req.body;
 
-    // 3. Update top-level fields
+    // 1. Update Top Level Fields
     if (email) user.email = email;
     if (role) user.role = role;
 
-    // 4. Update nested profile fields
-    if (fullName !== undefined) user.profile.fullName = fullName;
-    if (designation !== undefined) user.profile.designation = designation;
-    if (phone !== undefined) user.profile.phone = phone;
-    if (address !== undefined) user.profile.address = address;
-    if (qualification !== undefined) user.profile.studies = qualification;
+    // 2. Update Nested Profile Fields (Professional approach)
+    if (user.profile) {
+      if (fullName) user.profile.fullName = fullName;
+      if (designation) user.profile.designation = designation;
+      if (phone) user.profile.phone = phone;
+    }
 
-    // 5. Save the document (this triggers validation and pre-save hooks)
     const updatedUser = await user.save();
-
-    res.status(200).json(updatedUser);
+    res.status(200).json({ message: "User updated successfully", updatedUser });
   } catch (error) {
-    console.error("USER MANAGEMENT UPDATE ERROR:", error.message);
     res.status(500).json({ message: "Update failed", error: error.message });
   }
 };
@@ -87,21 +99,62 @@ export const updateUser = async (req, res) => {
 // DELETE USER
 export const deleteUser = async (req, res) => {
   try {
-    await User.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: "User deleted" });
+    const { id } = req.params;
+
+    // 1. Find the user first to see if they exist
+    const user = await User.findById(id);
+    
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // 2. Perform the deletion
+    await User.findByIdAndDelete(id);
+
+    res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Delete failed" });
+    console.error("DELETE ERROR:", error);
+    res.status(500).json({ message: "Failed to delete user", error: error.message });
   }
 };
 
 // RESET PASSWORD
+// export const resetUserPassword = async (req, res) => {
+//   try {
+//     const hashedPassword = await bcrypt.hash(req.body.newPassword, 10);
+//     await User.findByIdAndUpdate(req.params.id, { password: hashedPassword, isFirstLogin: true });
+//     res.status(200).json({ message: "Password reset successful" });
+//   } catch (error) {
+//     res.status(500).json({ message: "Reset failed" });
+//   }
+// };
+
 export const resetUserPassword = async (req, res) => {
   try {
-    const hashedPassword = await bcrypt.hash(req.body.newPassword, 10);
-    await User.findByIdAndUpdate(req.params.id, { password: hashedPassword, isFirstLogin: true });
-    res.status(200).json({ message: "Password reset successful" });
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { 
+        $set: { 
+          password: hashedPassword, 
+        } 
+      },
+      { new: true } 
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ message: "Password reset successful. User remains Active." });
   } catch (error) {
-    res.status(500).json({ message: "Reset failed" });
+    console.error("RESET ERROR:", error);
+    res.status(500).json({ message: "Reset failed", error: error.message });
   }
 };
 
@@ -131,7 +184,7 @@ export const updateMyProfile = async (req, res) => {
     const user = await User.findById(userId);
     const { fullName, designation, phone, address, qualification, password } = req.body;
 
-    // ✅ SAFETY CHECK: If the 'profile' object doesn't exist in DB, create it now
+    //SAFETY CHECK: If the 'profile' object doesn't exist in DB, create it now
     if (!user.profile) {
       user.profile = {};
     }
@@ -155,5 +208,35 @@ export const updateMyProfile = async (req, res) => {
   } catch (error) {
     console.error("BACKEND ERROR:", error.message); // Look at your terminal for this!
     res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+export const acceptInvitation = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+      inviteToken: hashedToken, 
+      inviteTokenExpire: { $gt: Date.now() }, 
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired invitation link." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    user.status = "Active";
+    user.inviteToken = undefined;
+    user.inviteTokenExpire = undefined;
+
+    await user.save();
+
+    res.status(200).json({ message: "Account activated successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

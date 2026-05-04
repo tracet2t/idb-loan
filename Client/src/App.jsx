@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
 import ReferenceData from "./pages/ReferenceData";
 import CreateLoan from "./pages/CreateLoan";
+import SetupPassword from "./pages/SetupPassword";
 
 function App() {
   return (
@@ -16,6 +17,8 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
 
+        <Route path="/setup-password/:token" element={<SetupPassword />} />
+        
         <Route
           path="/*"
           element={

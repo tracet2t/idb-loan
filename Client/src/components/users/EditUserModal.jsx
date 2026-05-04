@@ -25,13 +25,16 @@ export default function EditUserModal({ user, onClose, onUpdated }) {
     setLoading(true)
     try {
       await userService.updateUser(user._id, {
-        fullName:      form.fullName,
-        role:          form.role.toLowerCase().replace(' ', '-'),
-        designation:   form.designation,
-        qualification: form.qualification,
-        email:         form.email,
-        phone:         form.phone,
-        address:       form.address,
+        email: form.email,
+        role: form.role.toLowerCase().replace(' ', '-'),
+        // Nesting profile fields if your backend requires it:
+        profile: {
+          fullName: form.fullName,
+          designation: form.designation,
+          studies: form.qualification, 
+          phone: form.phone,
+          address: form.address,
+        }
       })
       toast.success('User updated successfully!')
       onUpdated()

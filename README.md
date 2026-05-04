@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # IDB Loan Web App
 
 ## Project Idea
@@ -29,6 +28,3 @@ Build a responsive web application for managing loan applications, approvals, an
 ## Goal
 
 Create a polished, user-friendly platform that simplifies the loan process, improves transparency, and enables efficient loan management for both borrowers and staff.
-=======
-﻿# IDB Loan Management System
->>>>>>> main

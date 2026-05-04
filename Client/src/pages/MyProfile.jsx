@@ -10,9 +10,9 @@ const MyProfile = () => {
         phone: '',
         qualification: '',
         address: '',
-        password: '', // Leave blank unless changing
-        username: '', // Read-only
-        role: ''      // Read-only
+        password: '', 
+        username: '', 
+        role: ''      
     });
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState({ type: '', text: '' });
@@ -62,7 +62,6 @@ const MyProfile = () => {
             });
             setMessage({ type: 'success', text: 'Profile updated successfully!' });
         } catch (err) {
-        // We use 'err' here to satisfy the ESLint rule you saw earlier
         const errorMsg = err.response?.data?.message || 'Update failed.';
         setMessage({ type: 'error', text: errorMsg }); }
     };

@@ -16,4 +16,7 @@ export const userService = {
   // PATCH /api/users/reset-password/:id — reset password
   resetPassword: (id, password) =>
     api.patch(`/users/reset-password/${id}`, { newPassword: password }),
+
+  acceptInvitation: (token, password) => 
+    api.post(`/users/accept-invitation/${token}`, { password }),
 }

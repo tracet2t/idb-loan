@@ -20,7 +20,8 @@ import {
     deleteUser, 
     resetUserPassword,
     getMyProfile, 
-    updateMyProfile
+    updateMyProfile,
+    acceptInvitation
 } from "../controllers/userController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -50,5 +51,7 @@ router.route("/:id")
 // 3. Specialized route for password resets
 // Matches PATCH /api/users/reset-password/:id
 router.patch("/reset-password/:id", resetUserPassword);
+
+router.post("/accept-invitation/:token", acceptInvitation);
 
 export default router;

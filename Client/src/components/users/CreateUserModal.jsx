@@ -8,7 +8,6 @@ const ROLES = ['Data Entry', 'Super Admin']
 export default function CreateUserModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     username: '',
-    password: '',
     role: 'Data Entry',
     fullName: '',
     designation: '',
@@ -24,15 +23,16 @@ export default function CreateUserModal({ onClose, onCreated }) {
   const handleSubmit = async () => {
     if (!form.username.trim()) return toast.error('Username is required')
     if (!form.email.trim())    return toast.error('Email is required')
-    if (!form.password || form.password.length < 8)
-      return toast.error('Password must be at least 8 characters')
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) return toast.error('Please enter a valid email');
 
     setLoading(true)
     try {
       await userService.createUser({
         username:     form.username,
         email:        form.email,
-        password:     form.password,
+        // password:     form.password,
         role:         form.role.toLowerCase().replace(' ', '-'),
         fullName:     form.fullName,
         designation:  form.designation,
@@ -52,6 +52,9 @@ export default function CreateUserModal({ onClose, onCreated }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6">
         {/* Header */}
+        <p className="text-[10px] bg-blue-50 text-blue-600 p-2 rounded-lg mb-4">
+          Note: An invitation email will be sent to the user to set their own password.
+        </p>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-semibold text-slate-800">Create New User</h2>
           <button
@@ -79,7 +82,7 @@ export default function CreateUserModal({ onClose, onCreated }) {
           </div>
 
           {/* Temporary Password */}
-          <div className="flex flex-col gap-1.5">
+          {/* <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-slate-600">
               Temporary Password <span className="text-red-500">*</span>
             </label>
@@ -91,7 +94,7 @@ export default function CreateUserModal({ onClose, onCreated }) {
               placeholder="Min 8 chars"
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2e7d5e]/30 focus:border-[#2e7d5e] transition"
             />
-          </div>
+          </div> */}
 
           {/* Role */}
           <div className="flex flex-col gap-1.5">
@@ -142,7 +145,7 @@ export default function CreateUserModal({ onClose, onCreated }) {
               type="email"
               value={form.email}
               onChange={handleChange}
-              placeholder="Optional"
+              placeholder="staff@idb.lk"
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2e7d5e]/30 focus:border-[#2e7d5e] transition"
             />
           </div>
@@ -173,7 +176,7 @@ export default function CreateUserModal({ onClose, onCreated }) {
             disabled={loading}
             className="px-5 py-2 text-sm bg-[#2e7d5e] text-white rounded-lg hover:bg-[#256b50] transition disabled:opacity-60"
           >
-            {loading ? 'Creating...' : 'Create User'}
+            {loading ? 'Creating...' : 'Send Invitation'}
           </button>
         </div>
       </div>
