@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
 import ReferenceData from "./pages/ReferenceData";
 import CreateLoan from "./pages/CreateLoan";
+import DataMigration from "./pages/DataMigration";
 
 function App() {
   return (
@@ -45,6 +46,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["data-entry"]}>
                 <CreateLoan />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="migration"
+            element={
+              <ProtectedRoute allowedRoles={["data-entry"]}>
+                <DataMigration />
               </ProtectedRoute>
             }
           />

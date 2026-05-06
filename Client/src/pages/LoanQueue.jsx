@@ -461,7 +461,7 @@ export default function LoanQueue() {
       });
       const timestamp = new Date().toISOString().slice(0, 10);
       saveAs(blob, `IDB_LoanQueue_${timestamp}.xlsx`);
-      toast.success("Export ready — check your downloads.");
+      toast.success("Export ready - check your downloads.");
     } catch (err) {
       console.error(err);
       toast.error("Export failed. Please try again.");
