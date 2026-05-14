@@ -9,6 +9,7 @@ import statsRoutes from "./src/routes/statsRoutes.js";
 import userRoutes from "./src/routes/userRoutes.js";
 import referenceRoutes from "./src/routes/referenceRoutes.js";
 import fundSettingsRoutes from "./src/routes/fundSettingsRoutes.js";
+import migrationRoutes from "./src/routes/migrationRoutes.js";
 
 // 1. Load Environment Variables
 dotenv.config();
@@ -34,6 +35,7 @@ app.use("/api/stats", statsRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/reference", referenceRoutes);
 app.use("/api/fund-settings", fundSettingsRoutes);
+app.use("/api/migration", migrationRoutes);
 app.use("/uploads", express.static("uploads"));
 
 // 5. Health Check
