@@ -9,6 +9,7 @@ import UserManagement from "./pages/UserManagement";
 import ReferenceData from "./pages/ReferenceData";
 import CreateLoan from "./pages/CreateLoan";
 import SetupPassword from "./pages/SetupPassword";
+import DataMigration from "./pages/DataMigration";
 
 function App() {
   return (
@@ -18,7 +19,7 @@ function App() {
         <Route path="/login" element={<Login />} />
 
         <Route path="/setup-password/:token" element={<SetupPassword />} />
-        
+
         <Route
           path="/*"
           element={
@@ -48,6 +49,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["data-entry"]}>
                 <CreateLoan />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="migration"
+            element={
+              <ProtectedRoute allowedRoles={["data-entry"]}>
+                <DataMigration />
               </ProtectedRoute>
             }
           />
