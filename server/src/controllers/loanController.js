@@ -157,3 +157,49 @@ export const getLoanStats = async (req, res) => {
     res.status(500).json({ message: "Error fetching stats" });
   }
 };
+
+// POST add new document to a loan
+export const addLoanDocument = async (req, res) => {
+  try {
+    const loan = await Loan.findById(req.params.id);
+    if (!loan) return res.status(404).json({ message: "Loan not found" });
+    if (loan.status !== "Pending")
+      return res.status(403).json({ message: "Only Pending loans can be edited" });
+
+    if (!req.files || req.files.length === 0)
+      return res.status(400).json({ message: "No files uploaded" });
+
+    const newDocs = req.files.map((file) => ({
+      name: file.originalname,
+      path: file.path.replace(/\\/g, "/"),
+      type: file.mimetype,
+    }));
+
+    loan.attachments.push(...newDocs);
+    await loan.save();
+    res.status(200).json(loan);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// DELETE remove a document from a loan
+export const removeLoanDocument = async (req, res) => {
+  try {
+    const { id, docIndex } = req.params;
+    const loan = await Loan.findById(id);
+    if (!loan) return res.status(404).json({ message: "Loan not found" });
+    if (loan.status !== "Pending")
+      return res.status(403).json({ message: "Only Pending loans can be edited" });
+
+    const idx = Number(docIndex);
+    if (idx < 0 || idx >= loan.attachments.length)
+      return res.status(400).json({ message: "Invalid document index" });
+
+    loan.attachments.splice(idx, 1);
+    await loan.save();
+    res.status(200).json(loan);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

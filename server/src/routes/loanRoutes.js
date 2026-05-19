@@ -34,7 +34,9 @@ import {
   createLoan, 
   updateLoanStatus, 
   updateLoanDetails,
-  getLoanStats 
+  getLoanStats,
+  addLoanDocument, 
+  removeLoanDocument 
 } from "../controllers/loanController.js";
 import { getRegions, getSectors } from "../controllers/metadataController.js";
 import upload from '../middleware/upload.js';
@@ -54,5 +56,11 @@ router.post('/apply', upload.array('attachments', 10), createLoan);
 router.patch("/:id/status", updateLoanStatus);
 router.patch("/:id/details", updateLoanDetails); 
 router.patch("/:id/approve", updateLoanStatus);
+
+
+router.post("/:id/documents", upload.array("files"), addLoanDocument);
+ 
+// DELETE 
+router.delete("/:id/documents/:docIndex", removeLoanDocument);
 
 export default router;

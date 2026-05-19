@@ -37,7 +37,7 @@ export default function LoanDetailModal({ loan, onClose}) {
     >
       {/* Card */}
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+        className="bg-white w-[90vw] h-[98vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -53,6 +53,8 @@ export default function LoanDetailModal({ loan, onClose}) {
             <X size={16} />
           </button>
         </div>
+
+        <div className="flex-1 overflow-y-auto">      {/* scroll*/}
 
         {/* Status banner */}
         <div className="px-6 pt-4">
@@ -119,6 +121,7 @@ export default function LoanDetailModal({ loan, onClose}) {
             </div>
           </div>
         )}
+        </div>   {/* ← close the scrollable wrapper before Footer actions */}
 
         {/* Footer actions */}
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">

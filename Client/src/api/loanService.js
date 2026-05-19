@@ -17,4 +17,14 @@ export const loanService = {
 
   // GET /api/loans/stats — counts for dashboard cards
   getLoanStats: () => api.get('/loans/stats'),
+
+  // POST add documents to a loan (multipart/form-data)
+  addLoanDocuments: (id, formData) =>
+    api.post(`/loans/${id}/documents`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+
+  // DELETE remove a document by index
+  removeLoanDocument: (id, docIndex) =>
+    api.delete(`/loans/${id}/documents/${docIndex}`),
 }
